@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <title>Scheda Volontari</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; font-size: 1.2em; }
+        .form-control, .btn { font-size: 1.2em; }
+        .container { max-width: 800px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Scheda Volontari</h1>
+        {% if messaggio %}
+            <div class="alert alert-success">{{ messaggio }}</div>
+        {% endif %}
+        <!-- Debug: mostra stato dati_volontario ed email -->
+        <p><strong>Debug:</strong> dati_volontario = {{ dati_volontario | tojson }} | email = {{ email | tojson }} | check_email = {{ request.form.get('check_email', '') }}</p>
+        {% if dati_volontario %}
+            <!-- Form per registrazione visita -->
+            <form method="post">
+                <div class="mb-3">
+                    <p><strong>Volontario:</strong> {{ dati_volontario[1] }} {{ dati_volontario[2] }} ({{ dati_volontario[3] }})</p>
+                    <input type="hidden" name="email" value="{{ email }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nome o Sigla dell'Assistito</label>
+                    <input type="text" name="assistito_nome" class="form-control" value="{{ dati_assistito[1] if dati_assistito else '' }}" required>
+                </div>
+                {% if not dati_assistito %}
+                    <div class="mb-3">
+                        <label class="form-label">Città</label>
+                        <input type="text" name="citta" class="form-control" value="{{ request.form.get('citta', '') }}" required>
+                    </div>
+                {% endif %}
+                <div class="mb-3">
+                    <label class="form-label">Accoglienza</label>
+                    <select name="accoglienza" class="form-control" required>
+                        <option value="Buona" {% if request.form.get('accoglienza') == 'Buona' %}selected{% endif %}>Buona</option>
+                        <option value="Media" {% if request.form.get('accoglienza') == 'Media' %}selected{% endif %}>Media</option>
+                        <option value="Scarsa" {% if request.form.get('accoglienza') == 'Scarsa' %}selected{% endif %}>Scarsa</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Data della Visita</label>
+                    <input type="date" name="data_visita" class="form-control" value="{{ request.form.get('data_visita', '') }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Necessità dell'Assistito</label>
+                    <textarea name="necessita" class="form-control" required>{{ request.form.get('necessita', '') }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Cosa Migliorare</label>
+                    <textarea name="cosa_migliorare" class="form-control" required>{{ request.form.get('cosa_migliorare', '') }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg">Salva Visita</button>
+                <a href="/admin_login" class="btn btn-secondary btn-lg">Accedi come Amministratore</a>
+                <a href="/manuale" class="btn btn-info btn-lg">Scarica Manuale</a>
+                <a href="/logout" class="btn btn-secondary btn-lg">Esci</a>
+            </form>
+        {% else %}
+            <!-- Form per verifica email o registrazione -->
+            <form method="post">
+                <div class="mb-3">
+                    <label class="form-label">Email del Volontario</label>
+                    <input type="email" name="email" class="form-control" value="{{ email or '' }}" required>
+                </div>
+                {% if request.form.get('check_email') %}
+                    <!-- Form per registrazione volontario -->
+                    <div class="mb-3">
+                        <label class="form-label">Cognome</label>
+                        <input type="text" name="cognome" class="form-control" value="{{ request.form.get('cognome', '') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" name="nome" class="form-control" value="{{ request.form.get('nome', '') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cellulare</label>
+                        <input type="text" name="cellulare" class="form-control" value="{{ request.form.get('cellulare', '') }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">Registra Volontario</button>
+                {% else %}
+                    <input type="hidden" name="check_email" value="1">
+                    <button type="submit" class="btn btn-primary btn-lg">Verifica Email</button>
+                {% endif %}
+                <a href="/admin_login" class="btn btn-secondary btn-lg">Accedi come Amministratore</a>
+                <a href="/manuale" class="btn btn-info btn-lg">Scarica Manuale</a>
+                <a href="/logout" class="btn btn-secondary btn-lg">Esci</a>
+            </form>
+        {% endif %}
+    </div>
+</body>
+</html>

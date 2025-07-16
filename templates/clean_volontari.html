@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <title>Pulizia Volontari</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; font-size: 1.2em; }
+        .form-control, .btn { font-size: 1.2em; }
+        .container { max-width: 600px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pulizia Volontari</h1>
+        {% if messaggio %}
+            <div class="alert alert-success">{{ messaggio }}</div>
+        {% endif %}
+        <form method="post">
+            <p>Questa azione eliminerà tutti i volontari non associati a visite. Procedere?</p>
+            <button type="submit" class="btn btn-danger btn-lg">Elimina Volontari</button>
+            <a href="/report" class="btn btn-secondary btn-lg">Torna al Report</a>
+        </form>
+    </div>
+</body>
+</html>
