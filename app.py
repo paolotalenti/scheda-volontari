@@ -13,6 +13,10 @@ def get_db_connection():
     conn = psycopg.connect(os.environ['DATABASE_URL'])
     return conn
 
+from collections import defaultdict
+from flask import Flask, render_template, request, redirect, url_for, session
+import psycopg
+
 @app.route('/report', methods=['GET', 'POST'])
 def report():
     if not session.get('logged_in'):
@@ -22,10 +26,11 @@ def report():
     cur = conn.cursor()
     
     # Filtri
-    nome_filtro = request.form.get('nome_filtro', '')
+    volontario_email = request.form.get('volontario_email', '')
     data_inizio = request.form.get('data_inizio', '')
     data_fine = request.form.get('data_fine', '')
 
+    # Query per le visite
     query = """
         SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
                vol.cognome, vol.nome, ass.citta
@@ -36,9 +41,9 @@ def report():
     """
     params = []
     
-    if nome_filtro:
-        query += " AND (vol.cognome ILIKE %s OR vol.nome ILIKE %s)"
-        params.extend([f'%{nome_filtro}%', f'%{nome_filtro}%'])
+    if volontario_email:
+        query += " AND v.volontario_email = %s"
+        params.append(volontario_email)
     if data_inizio:
         query += " AND v.data_visita >= %s"
         params.append(data_inizio)
@@ -47,25 +52,58 @@ def report():
         params.append(data_fine)
 
     try:
+        # Esegui la query per le visite
         cur.execute(query, params)
         visite = cur.fetchall()
     
         # Calcola statistiche
         cur.execute("SELECT COUNT(*) FROM visite")
         totale_visite = cur.fetchone()[0]
-        statistiche = {'totale_visite': totale_visite}
+
+        # Statistiche accoglienza
+        cur.execute("SELECT accoglienza, COUNT(*) FROM visite GROUP BY accoglienza")
+        accoglienza_rows = cur.fetchall()
+        accoglienza = {'Buona': 0, 'Media': 0, 'Scarsa': 0}
+        for row in accoglienza_rows:
+            accoglienza[row[0]] = row[1]
+
+        # Statistiche visite per città
+        cur.execute("SELECT ass.citta, COUNT(*) FROM visite v JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla GROUP BY ass.citta")
+        visite_per_citta = dict(cur.fetchall())
+
+        # Statistiche per volontario
+        cur.execute("""
+            SELECT v.volontario_email, vol.cognome, vol.nome, COUNT(*) 
+            FROM visite v 
+            JOIN volontari vol ON v.volontario_email = vol.email 
+            GROUP BY v.volontario_email, vol.cognome, vol.nome
+        """)
+        statistiche_volontari = {row[0]: {'cognome': row[1], 'nome': row[2], 'visite': row[3]} for row in cur.fetchall()}
+
+        # Elenco volontari per il filtro
+        cur.execute("SELECT email, cognome, nome FROM volontari ORDER BY cognome, nome")
+        volontari = cur.fetchall()
+
+        statistiche = {
+            'totale_visite': totale_visite,
+            'accoglienza': accoglienza,
+            'visite_per_citta': visite_per_citta
+        }
     
     except psycopg.OperationalError as e:
         print(f"Database error: {e}")
         visite = []
-        statistiche = {'totale_visite': 0}
+        statistiche = {'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}
+        statistiche_volontari = {}
+        volontari = []
     
     finally:
         cur.close()
         conn.close()
     
     return render_template('report.html', visite=visite, statistiche=statistiche, 
-                          nome_filtro=nome_filtro, data_inizio=data_inizio, data_fine=data_fine)
+                          statistiche_volontari=statistiche_volontari, volontari=volontari, 
+                          filtro_volontario=volontario_email, data_inizio=data_inizio, data_fine=data_fine)
 
 @app.route('/download_pdf')
 def download_pdf():
