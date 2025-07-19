@@ -13,7 +13,6 @@ def get_db_connection():
     conn = psycopg.connect(os.environ['DATABASE_URL'])
     return conn
 
-
 @app.route('/report', methods=['GET', 'POST'])
 def report():
     if not session.get('logged_in'):
