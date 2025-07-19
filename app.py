@@ -13,20 +13,6 @@ def get_db_connection():
     conn = psycopg.connect(os.environ['DATABASE_URL'])
     return conn
 
-@app.route('/')
-def index():
-    return redirect(url_for('admin_login'))
-
-@app.route('/admin_login', methods=['GET', 'POST'])
-def admin_login():
-    if request.method == 'POST':
-        password = request.form['password']
-        if password == os.getenv('ADMIN_PASSWORD', 'admin123'):
-            session['logged_in'] = True
-            return redirect(url_for('report'))
-        else:
-            return render_template('admin_login.html', error="Password errata")
-    return render_template('admin_login.html', error=None)
 
 @app.route('/report', methods=['GET', 'POST'])
 def report():
@@ -61,16 +47,23 @@ def report():
         query += " AND v.data_visita <= %s"
         params.append(data_fine)
 
-    cur.execute(query, params)
-    visite = cur.fetchall()
+    try:
+        cur.execute(query, params)
+        visite = cur.fetchall()
     
-    # Calcola statistiche
-    cur.execute("SELECT COUNT(*) FROM visite")
-    totale_visite = cur.fetchone()[0]
-    statistiche = {'totale_visite': totale_visite}
+        # Calcola statistiche
+        cur.execute("SELECT COUNT(*) FROM visite")
+        totale_visite = cur.fetchone()[0]
+        statistiche = {'totale_visite': totale_visite}
     
-    cur.close()
-    conn.close()
+    except psycopg.OperationalError as e:
+        print(f"Database error: {e}")
+        visite = []
+        statistiche = {'totale_visite': 0}
+    
+    finally:
+        cur.close()
+        conn.close()
     
     return render_template('report.html', visite=visite, statistiche=statistiche, 
                           nome_filtro=nome_filtro, data_inizio=data_inizio, data_fine=data_fine)
