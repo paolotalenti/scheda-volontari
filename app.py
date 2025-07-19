@@ -68,7 +68,6 @@ def report():
     return render_template('report.html', visite=visite, statistiche=statistiche, 
                           nome_filtro=nome_filtro, data_inizio=data_inizio, data_fine=data_fine)
 
-
 @app.route('/download_pdf')
 def download_pdf():
     if not session.get('logged_in'):
