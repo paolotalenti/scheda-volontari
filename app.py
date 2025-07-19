@@ -64,10 +64,17 @@ def report():
     cur.execute(query, params)
     visite = cur.fetchall()
     
+    # Calcola statistiche
+    cur.execute("SELECT COUNT(*) FROM visite")
+    totale_visite = cur.fetchone()[0]
+    statistiche = {'totale_visite': totale_visite}
+    
     cur.close()
     conn.close()
     
-    return render_template('report.html', visite=visite, nome_filtro=nome_filtro, data_inizio=data_inizio, data_fine=data_fine)
+    return render_template('report.html', visite=visite, statistiche=statistiche, 
+                          nome_filtro=nome_filtro, data_inizio=data_inizio, data_fine=data_fine)
+
 
 @app.route('/download_pdf')
 def download_pdf():
