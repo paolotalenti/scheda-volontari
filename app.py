@@ -1,5 +1,5 @@
 import os
-import psycopg
+import psycopg2
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from fpdf import FPDF
 import csv
