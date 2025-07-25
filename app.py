@@ -18,6 +18,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 # Connessione al database PostgreSQL
 def get_db_connection():
     try:
+        import psycopg
         return psycopg.connect(os.getenv('DATABASE_URL'))
     except psycopg.OperationalError as e:
         print(f"Errore di connessione al database: {e}")
