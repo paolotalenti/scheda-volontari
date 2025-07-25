@@ -1,5 +1,5 @@
 import os
-import psycopg2
+import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from fpdf import FPDF
 import csv
@@ -15,14 +15,9 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
-
-
-
-Connessione al database PostgreSQL
-
+# Connessione al database PostgreSQL
 def get_db_connection():
     try:
-        import psycopg
         return psycopg.connect(os.getenv('DATABASE_URL'))
     except psycopg.OperationalError as e:
         print(f"Errore di connessione al database: {e}")
@@ -169,7 +164,7 @@ def report():
             if data_inizio:
                 count_query += " AND data_visita >= %s"
             if data_fine:
-                count_query += " AND data_visita <= %s"
+                count_query += " AND v.data_visita <= %s"
         cur.execute(count_query, params)
         totale_visite = cur.fetchone()[0]
 
@@ -182,7 +177,7 @@ def report():
             if data_inizio:
                 accoglienza_query += " AND data_visita >= %s"
             if data_fine:
-                accoglienza_query += " AND data_visita <= %s"
+                accoglienza_query += " AND v.data_visita <= %s"
         accoglienza_query += " GROUP BY accoglienza"
         cur.execute(accoglienza_query, params)
         accoglienza_rows = cur.fetchall()
