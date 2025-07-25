@@ -15,7 +15,11 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
-# Connessione al database PostgreSQL
+
+
+
+Connessione al database PostgreSQL
+
 def get_db_connection():
     try:
         import psycopg
