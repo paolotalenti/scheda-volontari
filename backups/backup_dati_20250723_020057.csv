@@ -1,0 +1,26 @@
+--- Visite ---
+Volontario Email,Cognome,Nome,Assistito,Città,Accoglienza,Data Visita,Necessità,Cosa Migliorare
+giulia.bianchi@example.com,Giulia,Bianchi,ASS001,Milano,Buona,2025-07-20,aiuto,presenza
+giulia.bianchi@example.com,Giulia,Bianchi,ASS001,Milano,Buona,2025-07-20,mah,boh
+mario.rossi@example.com,Mario,Rossi2,ASS001,Milano,Buona,2025-07-20,Supporto logistico,Migliorare comunicazione
+anna.verdi@example.com,Anna,Verdi,ASS002,Roma,Media,2025-07-19,Aiuto alimentare,Più risorse
+nuovo@esempio.com,Volontario,Nuovo,BBBBB123,firenze,Buona,2025-07-22,sugo fresco,Il giramento di sugo
+giulia.bianchi@example.com,Giulia,Bianchi,BBBBB123,firenze,Buona,2025-07-22,Mah,Boh
+mario.rossi@example.com,Mario,Rossi2,CCCCC1233,Roma,Buona,2025-07-21,pasta in bianco,il sugo
+test@esempio.com,testo,esempio,DDDDDD,Napoli,Buona,2025-07-22,sugo buono,Giramento di sugo
+--- Volontari ---
+Email,Cognome,Nome,Telefono,Competenze,Disponibilità,Data Iscrizione
+anna.verdi@example.com,Verdi,Anna,0987654321,Assistenza sociale,Lunedì e Mercoledì,2025-07-20 16:06:43.133576
+giulia.bianchi@example.com,Bianchi,Giulia,123456789,Brava con gli anziani,Durante la settimana,2025-07-21 14:12:43.856434
+test@esempio,Test bravo,Esempio,123456,Bravo a fare la pasta,sono in settimana,2025-07-22 14:13:56.987041
+mario.rossi@example.com,Rossi2,Mario,1234567890,Organizzazione eventi,Weekend,2025-07-20 16:06:43.133576
+lcamlay@gmail.com,Cam Lay,Luzmila,123456789,Informatiche,martedi e giovedi,2025-07-22 14:25:59.671828
+test@esempio.com,esempio,testo,12345,cuoco,settimanale,2025-07-22 14:39:43.272098
+nuovo@esempio.com,Nuovo,Volontario,12345678,Giratore di sugo,solo la domenica pomeriggio,2025-07-22 15:38:17.402009
+--- Assistiti ---
+Nome Sigla,Città
+ASS001,Milano
+ASS002,Roma
+BBBBB123,firenze
+CCCCC1233,Roma
+DDDDDD,Napoli

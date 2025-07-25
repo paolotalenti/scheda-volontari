@@ -31,14 +31,6 @@ CREATE TABLE visite (
     FOREIGN KEY (volontario_email) REFERENCES volontari(email) ON DELETE RESTRICT,
     FOREIGN KEY (assistito_nome) REFERENCES assistiti(nome_sigla) ON DELETE RESTRICT
 );
-
--- Nota: Inserisci qui i dati esportati da SQLite, se necessario
--- Esempio di sintassi per inserire dati:
--- INSERT INTO volontari (cognome, nome, cellulare, email) VALUES
--- ('Rossi', 'Mario', '+39 123 456 7890', 'mario.rossi@example.com'),
--- ('Bianchi', 'Laura', '+39 987 654 3210', 'laura.bianchi@example.com');
--- INSERT INTO assistiti (nome_sigla, citta) VALUES
--- ('A1', 'Milano'),
--- ('B2', 'Roma');
--- INSERT INTO visite (volontario_email, assistito_nome, accoglienza, data_visita, necessita, cosa_migliorare) VALUES
--- ('mario.rossi@example.com', 'A1', 'Buona', '2025-07-01', 'Supporto psicologico', 'Migliorare tempi di risposta');
+INSERT INTO volontari (cognome, nome, cellulare, email) VALUES ('Rossi', 'Mario', '+39 123 456 7890', 'mario.rossi@example.com');
+INSERT INTO assistiti (nome_sigla, citta) VALUES ('A1', 'Milano');
+INSERT INTO visite (volontario_email, assistito_nome, accoglienza, data_visita, necessita, cosa_migliorare) VALUES ('mario.rossi@example.com', 'A1', 'Buona', '2025-07-01', 'Supporto psicologico', 'Migliorare tempi di risposta');

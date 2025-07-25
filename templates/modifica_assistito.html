@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Modifica Assistito</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% if assistito %}
+    <form method="POST">
+        <div class="mb-3">
+            <label for="nome_sigla" class="form-label">Nome Sigla</label>
+            <input type="text" class="form-control" id="nome_sigla" name="nome_sigla" value="{{ assistito[0] }}" readonly>
+        </div>
+        <div class="mb-3">
+            <label for="citta" class="form-label">Città</label>
+            <input type="text" class="form-control" id="citta" name="citta" value="{{ assistito[1] or '' }}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+        <a href="{{ url_for('lista_assistiti') }}" class="btn btn-secondary">Annulla</a>
+    </form>
+    {% else %}
+    <p>Assistito non trovato.</p>
+    <a href="{{ url_for('lista_assistiti') }}" class="btn btn-secondary">Torna alla lista</a>
+    {% endif %}
+</div>
+{% endblock %}

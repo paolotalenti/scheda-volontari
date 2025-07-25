@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Manuale d'uso - Scheda Volontari</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <h2>Introduzione</h2>
+    <p>L'applicazione <strong>Scheda Volontari</strong> è progettata per gestire le visite dei volontari agli assistiti, permettendo la registrazione delle visite, la gestione dei volontari e degli assistiti, e la creazione di report dettagliati. Questo manuale descrive come utilizzare le funzionalità principali per amministratori e volontari.</p>
+    
+    <h3>1. Accesso per Amministratori</h3>
+    <p>Gli amministratori possono accedere alle funzionalità di gestione tramite la pagina di login:</p>
+    <ul>
+        <li><strong>Accedi</strong>: Vai su <a href="{{ url_for('admin_login') }}">Login Amministratore</a> e inserisci la password (contatta l’amministratore per ottenerla).</li>
+        <li>La pagina di login è protetta per garantire che solo gli amministratori autorizzati possano accedere.</li>
+    </ul>
+
+    <h3>2. Funzionalità per Amministratori</h3>
+    <p>Dopo il login, gli amministratori hanno accesso alle seguenti sezioni:</p>
+    <ul>
+        <li><strong>Report</strong> (<a href="{{ url_for('report') }}">/report</a>):
+            <ul>
+                <li>Visualizza tutte le visite registrate con filtri per volontario, data di inizio e fine.</li>
+                <li>Scarica i report in formato PDF o CSV usando i pulsanti dedicati (i file rispettano i filtri applicati).</li>
+                <li>Scarica un backup completo dei dati (visite, volontari, assistiti) con il pulsante "Backup Dati".</li>
+                <li>Usa "Pulisci Visite Filtrate" per eliminare le visite che soddisfano i filtri attivi (volontario, data inizio, data fine).</li>
+                <li>Usa "Pulisci Tutto" per eliminare visite, volontari e assistiti (richiede la password amministrativa per sicurezza).</li>
+            </ul>
+        </li>
+        <li><strong>Gestisci Volontari</strong> (<a href="{{ url_for('lista_volontari') }}">/volontari</a>):
+            <ul>
+                <li>Aggiungi un nuovo volontario inserendo email, cognome, nome, telefono, competenze e disponibilità.</li>
+                <li>Modifica o elimina volontari esistenti (non eliminabili se hanno visite associate).</li>
+            </ul>
+        </li>
+        <li><strong>Gestisci Assistiti</strong> (<a href="{{ url_for('lista_assistiti') }}">/assistiti</a>):
+            <ul>
+                <li>Aggiungi un nuovo assistito inserendo nome sigla e città.</li>
+                <li>Modifica o elimina assistiti esistenti (non eliminabili se hanno visite associate).</li>
+            </ul>
+        </li>
+        <li><strong>Backup e Ripristino</strong> (<a href="{{ url_for('backup') }}">/backup</a>, <a href="{{ url_for('restore') }}">/restore</a>):
+            <ul>
+                <li>Scarica un backup dei dati (visite, volontari, assistiti) in formato CSV.</li>
+                <li>I backup automatici vengono eseguiti ogni giorno alle 02:00 e salvati nella directory <code>backups/</code>.</li>
+                <li>Per ripristinare i dati, vai alla pagina <a href="{{ url_for('restore') }}">Ripristino</a>, carica un file CSV di backup, e inserisci la password amministrativa.</li>
+            </ul>
+        </li>
+        <li><strong>Manuale</strong>: Questa pagina, che descrive tutte le funzionalità.</li>
+        <li><strong>Logout</strong> (<a href="{{ url_for('logout') }}">/logout</a>): Esci dalla sessione amministrativa.</li>
+    </ul>
+
+    <h3>3. Funzionalità per Volontari</h3>
+    <p>I volontari non necessitano di login e possono:</p>
+    <ul>
+        <li><strong>Inserisci Visita</strong> (<a href="{{ url_for('inserisci_visita') }}">/inserisci_visita</a>):
+            <ul>
+                <li>Registrati come nuovo volontario inserendo email, cognome, nome, telefono (opzionale), competenze (opzionale) e disponibilità (opzionale).</li>
+                <li>Inserisci una visita selezionando un assistito, il livello di accoglienza (Buona, Media, Scarsa), la data della visita, e aggiungendo necessità o suggerimenti di miglioramento (opzionali).</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3>4. Backup e Ripristino</h3>
+    <p>Per evitare perdite di dati:</p>
+    <ul>
+        <li>Usa il pulsante "Backup Dati" nella pagina Report per scaricare un file CSV contenente tutte le visite, i volontari e gli assistiti.</li>
+        <li>I backup automatici vengono eseguiti ogni giorno alle 02:00 e salvati nella directory <code>backups/</code> del server.</li>
+        <li>Per ripristinare i dati, vai alla pagina <a href="{{ url_for('restore') }}">Ripristino</a>, carica un file CSV di backup, e inserisci la password amministrativa.</li>
+        <li>Conserva i file di backup in un luogo sicuro.</li>
+    </ul>
+
+    <h3>5. Risoluzione dei problemi</h3>
+    <ul>
+        <li><strong>Errore durante l’aggiunta di un volontario o assistito</strong>: Controlla che l’email (per i volontari) o il nome sigla (per gli assistiti) non sia già registrata.</li>
+        <li><strong>Errore di accesso</strong>: Assicurati di usare la password corretta per il login amministrativo.</li>
+        <li><strong>Problemi con i report</strong>: Verifica che i filtri siano impostati correttamente e che ci siano dati nel database.</li>
+        <li><strong>Eliminazione accidentale</strong>: Usa il backup per ripristinare i dati. "Pulisci Tutto" richiede la password amministrativa per evitare errori.</li>
+    </ul>
+
+    <h3>6. Contatti</h3>
+    <p>Per assistenza, contatta l’Amministratore Sistema:</p>
+    <ul>
+        <li><strong>Telefono</strong>: +39 348 5707840</li>
+        <li><strong>Email</strong>: paolo.talenti@gmail.com</li>
+    </ul>
+
+    <a href="{{ url_for('report') }}" class="btn btn-secondary mt-3">Torna ai report</a>
+</div>
+{% endblock %}

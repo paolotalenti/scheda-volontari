@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Elenco Assistiti</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <a href="{{ url_for('aggiungi_assistito') }}" class="btn btn-primary mb-3">Aggiungi Assistito</a>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Nome Sigla</th>
+                <th>Città</th>
+                <th>Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assistito in assistiti %}
+            <tr>
+                <td>{{ assistito[0] }}</td>
+                <td>{{ assistito[1] }}</td>
+                <td>
+                    <a href="{{ url_for('modifica_assistito', nome_sigla=assistito[0]) }}" class="btn btn-sm btn-warning">Modifica</a>
+                    <form action="{{ url_for('elimina_assistito', nome_sigla=assistito[0]) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Sei sicuro di voler eliminare questo assistito?')">Elimina</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">Nessun assistito trovato.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="{{ url_for('report') }}" class="btn btn-secondary">Torna ai report</a>
+</div>
+{% endblock %}

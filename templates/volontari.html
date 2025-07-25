@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Gestisci Volontari</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <a href="{{ url_for('aggiungi_volontario') }}" class="btn btn-primary btn-lg mb-3">Aggiungi Volontario</a>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Cognome</th>
+                <th>Nome</th>
+                <th>Telefono</th>
+                <th>Competenze</th>
+                <th>Disponibilità</th>
+                <th>Data Iscrizione</th>
+                <th>Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for volontario in volontari %}
+                <tr>
+                    <td>{{ volontario[0] }}</td>
+                    <td>{{ volontario[1] }}</td>
+                    <td>{{ volontario[2] }}</td>
+                    <td>{{ volontario[3] or '' }}</td>
+                    <td>{{ volontario[4] or '' }}</td>
+                    <td>{{ volontario[5] or '' }}</td>
+                    <td>{{ volontario[6] }}</td>
+                    <td>
+                        <a href="{{ url_for('modifica_volontario', email=volontario[0]) }}" class="btn btn-warning btn-sm">Modifica</a>
+                        <form action="{{ url_for('elimina_volontario', email=volontario[0]) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Sei sicuro di voler eliminare questo volontario?');">Elimina</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

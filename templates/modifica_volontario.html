@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Modifica Volontario</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if volontario %}
+    <form method="POST" action="{{ url_for('modifica_volontario', email=volontario[0]) }}">
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email" value="{{ volontario[0] }}" readonly>
+        </div>
+        <div class="mb-3">
+            <label for="cognome" class="form-label">Cognome</label>
+            <input type="text" class="form-control" id="cognome" name="cognome" value="{{ volontario[1] or '' }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="nome" class="form-label">Nome</label>
+            <input type="text" class="form-control" id="nome" name="nome" value="{{ volontario[2] or '' }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="telefono" class="form-label">Telefono</label>
+            <input type="text" class="form-control" id="telefono" name="telefono" value="{{ volontario[3] or '' }}">
+        </div>
+        <div class="mb-3">
+            <label for="competenze" class="form-label">Competenze</label>
+            <textarea class="form-control" id="competenze" name="competenze" rows="4">{{ volontario[4] or '' }}</textarea>
+        </div>
+        <div class="mb-3">
+            <label for="disponibilita" class="form-label">Disponibilità</label>
+            <textarea class="form-control" id="disponibilita" name="disponibilita" rows="4">{{ volontario[5] or '' }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+        <a href="{{ url_for('lista_volontari') }}" class="btn btn-secondary">Annulla</a>
+    </form>
+    {% else %}
+    <p>Volontario non trovato.</p>
+    <a href="{{ url_for('lista_volontari') }}" class="btn btn-secondary">Torna alla lista</a>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-5">
-    <h1 class="mb-4">Login Amministratore</h1>
+    <h1 class="mb-4">Aggiungi Assistito</h1>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -14,11 +14,15 @@
     {% endwith %}
     <form method="POST">
         <div class="mb-3">
-            <label for="password" class="form-label">Password Amministratore</label>
-            <input type="password" class="form-control" id="password" name="password" required>
+            <label for="nome_sigla" class="form-label">Nome Sigla</label>
+            <input type="text" class="form-control" id="nome_sigla" name="nome_sigla" required>
         </div>
-        <button type="submit" class="btn btn-primary">Login</button>
-        <a href="{{ url_for('inserisci_visita') }}" class="btn btn-secondary">Torna alla Home</a>
+        <div class="mb-3">
+            <label for="citta" class="form-label">Città</label>
+            <input type="text" class="form-control" id="citta" name="citta" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Aggiungi</button>
+        <a href="{{ url_for('lista_assistiti') }}" class="btn btn-secondary">Annulla</a>
     </form>
 </div>
 {% endblock %}
