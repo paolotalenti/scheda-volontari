@@ -385,30 +385,30 @@ def backup():
         cur.execute("SELECT nome_sigla, citta FROM assistiti")
         assistiti = cur.fetchall()
 
-        output = StringIO()
-        writer = csv.writer(output, lineterminator='\n')
+        base_path = os.path.join(os.path.dirname(__file__), 'backups')
+        os.makedirs(base_path, exist_ok=True)
+        filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as output_file:
+            writer = csv.writer(output_file, lineterminator='\n')
+            writer.writerow(['--- Visite ---'])
+            writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
+            for visita in visite:
+                writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
 
-        # Scrittura visite
-        writer.writerow(['--- Visite ---'])
-        writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
-        for visita in visite:
-            writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
+            writer.writerow(['--- Volontari ---'])
+            writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
+            for volontario in volontari:
+                writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
 
-        # Scrittura volontari
-        writer.writerow(['--- Volontari ---'])
-        writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
-        for volontario in volontari:
-            writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
-
-        # Scrittura assistiti
-        writer.writerow(['--- Assistiti ---'])
-        writer.writerow(['Nome Sigla', 'Città'])
-        for assistito in assistiti:
-            writer.writerow([assistito[0], assistito[1]])
-
-        csv_output = output.getvalue().encode('utf-8')
-        output.close()
-        return Response(csv_output, mimetype='text/csv', headers={"Content-Disposition": f"attachment;filename=backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"})
+            writer.writerow(['--- Assistiti ---'])
+            writer.writerow(['Nome Sigla', 'Città'])
+            for assistito in assistiti:
+                writer.writerow([assistito[0], assistito[1]])
+        
+        print(f"Backup manuale creato: {filename}")
+        flash("Backup creato con successo sul server!", "success")
+        return redirect(url_for('report'))
     except psycopg.OperationalError as e:
         flash(f"Errore nel backup: {e}", "error")
         return redirect(url_for('report'))
@@ -436,8 +436,8 @@ def restore():
             flash("Password errata per il ripristino.", "error")
             return render_template('restore.html', backup_files=backup_files)
 
-        file = request.files.get('file')
-        if file and file.filename.endswith('.csv'):
+        selected_file = request.form.get('backup_file_select')
+        if selected_file:
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
@@ -449,7 +449,9 @@ def restore():
                 conn.commit()
 
                 # Leggi il file CSV
-                content = file.read().decode('utf-8-sig').splitlines()
+                file_path = os.path.join(base_path, selected_file)
+                with open(file_path, 'r', encoding='utf-8-sig') as f:
+                    content = f.read().splitlines()
                 if not content:
                     raise Exception("Il file CSV è vuoto.")
                 reader = csv.reader(content)
@@ -493,7 +495,7 @@ def restore():
                     """, visita)
 
                 conn.commit()
-                flash("Dati ripristinati con successo!", "success")
+                flash(f"Backup {selected_file} ripristinato con successo!", "success")
                 return redirect(url_for('report'))
             except psycopg.OperationalError as e:
                 flash(f"Errore nel ripristino: {e}", "error")
@@ -737,10 +739,7 @@ def inserisci_visita():
         cur.close()
         conn.close()
         return render_template('inserisci_visita.html', assistiti=assistiti)
-    finally:
-        cur.close()
-        conn.close()
-
+    
     if request.method == 'POST':
         volontario_email = request.form.get('volontario_email')
         volontario_cognome = request.form.get('volontario_cognome')
@@ -919,5 +918,5 @@ def logout():
     return redirect(url_for('admin_login'))
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))  # Usa la porta di Render o 5000 come default
+    port = int(os.getenv('PORT', 5001))  # Porta aggiornata a 5001
     app.run(host='0.0.0.0', port=port, debug=True)

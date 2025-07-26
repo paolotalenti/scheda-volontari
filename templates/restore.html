@@ -18,14 +18,10 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST">
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
                 <input type="password" class="form-control" id="password" name="password" required>
-            </div>
-            <div class="mb-3">
-                <label for="file" class="form-label">Carica un file CSV</label>
-                <input type="file" class="form-control" id="file" name="file" accept=".csv">
             </div>
             <div>
                 <label for="backup_file_select">Seleziona un backup esistente:</label>
@@ -35,9 +31,8 @@
                         <option value="{{ file }}">{{ file }}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" name="restore_selected" class="btn btn-primary mt-2">Ripristina selezionato</button>
+                <button type="submit" name="restore_selected" class="btn btn-primary mt-2">Ripristina</button>
             </div>
-            <button type="submit" class="btn btn-success mt-3">Ripristina</button>
             <a href="{{ url_for('report') }}" class="btn btn-secondary mt-3">Torna al report</a>
         </form>
     </div>
