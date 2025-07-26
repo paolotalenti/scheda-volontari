@@ -45,8 +45,9 @@ def backup_automatico():
         cur.execute("SELECT nome_sigla, citta FROM assistiti")
         assistiti = cur.fetchall()
 
-        os.makedirs('backups', exist_ok=True)
-        filename = f"backups/backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        base_path = os.path.join(os.path.dirname(__file__), 'backups')
+        os.makedirs(base_path, exist_ok=True)
+        filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
         
         with open(filename, 'w', newline='', encoding='utf-8') as output_file:
             writer = csv.writer(output_file, lineterminator='\n')
@@ -68,8 +69,8 @@ def backup_automatico():
 
         # Cancella backup vecchi (oltre 7 giorni)
         now = datetime.now()
-        for file in os.listdir('backups'):
-            file_path = os.path.join('backups', file)
+        for file in os.listdir(base_path):
+            file_path = os.path.join(base_path, file)
             if os.path.isfile(file_path):
                 file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
                 if (now - file_time).days > 7:
@@ -421,14 +422,14 @@ def restore():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    backup_files = []
-    try:
-        # Lista dei file di backup nella cartella backups/
-        if os.path.exists('backups'):
-            backup_files = [f for f in os.listdir('backups') if f.startswith('backup_dati_') and f.endswith('.csv')]
-    except Exception as e:
-        flash(f"Errore nella lettura dei backup: {e}", "error")
-
+backup_files = []
+try:
+    base_path = os.path.join(os.path.dirname(__file__), 'backups')
+    if os.path.exists(base_path):
+        backup_files = [f for f in os.listdir(base_path) if f.startswith('backup_dati_') and f.endswith('.csv')]
+except Exception as e:
+    flash(f"Errore nella lettura dei backup: {e}", "error")
+    
     if request.method == 'POST':
         password = request.form.get('password')
         if password != 'admin123':
