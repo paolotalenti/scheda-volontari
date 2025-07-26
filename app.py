@@ -422,14 +422,14 @@ def restore():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-backup_files = []
-try:
-    base_path = os.path.join(os.path.dirname(__file__), 'backups')
-    if os.path.exists(base_path):
-        backup_files = [f for f in os.listdir(base_path) if f.startswith('backup_dati_') and f.endswith('.csv')]
-except Exception as e:
-    flash(f"Errore nella lettura dei backup: {e}", "error")
-    
+    backup_files = []
+    try:
+        base_path = os.path.join(os.path.dirname(__file__), 'backups')
+        if os.path.exists(base_path):
+            backup_files = [f for f in os.listdir(base_path) if f.startswith('backup_dati_') and f.endswith('.csv')]
+    except Exception as e:
+        flash(f"Errore nella lettura dei backup: {e}", "error")
+
     if request.method == 'POST':
         password = request.form.get('password')
         if password != 'admin123':
@@ -919,4 +919,5 @@ def logout():
     return redirect(url_for('admin_login'))
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    port = int(os.getenv('PORT', 5000))  # Usa la porta di Render o 5000 come default
+    app.run(host='0.0.0.0', port=port, debug=True)
