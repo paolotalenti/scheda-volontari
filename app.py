@@ -28,6 +28,7 @@ def backup_automatico():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        print("Inizio backup automatico alle:", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         # Backup visite
         cur.execute("""
             SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
@@ -38,38 +39,42 @@ def backup_automatico():
         """)
         visite = cur.fetchall()
 
-        # Backup volontari
         cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
         volontari = cur.fetchall()
 
-        # Backup assistiti
         cur.execute("SELECT nome_sigla, citta FROM assistiti")
         assistiti = cur.fetchall()
 
-        # Crea directory backups se non esiste
         os.makedirs('backups', exist_ok=True)
         filename = f"backups/backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
         with open(filename, 'w', newline='', encoding='utf-8') as output_file:
             writer = csv.writer(output_file, lineterminator='\n')
-
-            # Scrittura visite
             writer.writerow(['--- Visite ---'])
             writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
             for visita in visite:
                 writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
 
-            # Scrittura volontari
             writer.writerow(['--- Volontari ---'])
             writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
             for volontario in volontari:
                 writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
 
-            # Scrittura assistiti
             writer.writerow(['--- Assistiti ---'])
             writer.writerow(['Nome Sigla', 'Città'])
             for assistito in assistiti:
                 writer.writerow([assistito[0], assistito[1]])
+        print(f"Backup creato: {filename}")
+
+        # Cancella backup vecchi (oltre 7 giorni)
+        now = datetime.now()
+        for file in os.listdir('backups'):
+            file_path = os.path.join('backups', file)
+            if os.path.isfile(file_path):
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if (now - file_time).days > 7:
+                    os.remove(file_path)
+                    print(f"Eliminato backup vecchio: {file}")
 
     except psycopg.OperationalError as e:
         print(f"Errore nel backup automatico: {e}")
