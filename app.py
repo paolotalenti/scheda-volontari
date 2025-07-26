@@ -416,83 +416,88 @@ def restore():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
+    backup_files = []
+    try:
+        # Lista dei file di backup nella cartella backups/
+        if os.path.exists('backups'):
+            backup_files = [f for f in os.listdir('backups') if f.startswith('backup_dati_') and f.endswith('.csv')]
+    except Exception as e:
+        flash(f"Errore nella lettura dei backup: {e}", "error")
+
     if request.method == 'POST':
         password = request.form.get('password')
         if password != 'admin123':
             flash("Password errata per il ripristino.", "error")
-            return render_template('restore.html')
+            return render_template('restore.html', backup_files=backup_files)
 
         file = request.files.get('file')
-        if not file or not file.filename.endswith('.csv'):
-            flash("Carica un file CSV valido.", "error")
-            return render_template('restore.html')
+        if file and file.filename.endswith('.csv'):
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
 
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
+                # Pulizia del database
+                cur.execute("DELETE FROM visite")
+                cur.execute("DELETE FROM volontari")
+                cur.execute("DELETE FROM assistiti")
+                conn.commit()
 
-            # Pulizia del database
-            cur.execute("DELETE FROM visite")
-            cur.execute("DELETE FROM volontari")
-            cur.execute("DELETE FROM assistiti")
-            conn.commit()
+                # Leggi il file CSV
+                content = file.read().decode('utf-8-sig').splitlines()
+                if not content:
+                    raise Exception("Il file CSV è vuoto.")
+                reader = csv.reader(content)
+                section = None
+                assistiti = []
+                volontari = []
+                visite = []
 
-            # Leggi il file CSV
-            content = file.read().decode('utf-8-sig').splitlines()
-            if not content:
-                raise Exception("Il file CSV è vuoto.")
-            reader = csv.reader(content)
-            section = None
-            assistiti = []
-            volontari = []
-            visite = []
-
-            # Raccogli i dati
-            for i, row in enumerate(reader):
-                if not row or not any(row):  # Ignora righe vuote
-                    continue
-                if row[0].startswith('---'):
-                    section = row[0]
-                    continue
-                if section == '--- Visite ---' and row[0] != 'Volontario Email':
-                    if len(row) < 9:
+                # Raccogli i dati
+                for i, row in enumerate(reader):
+                    if not row or not any(row):  # Ignora righe vuote
                         continue
-                    visite.append((row[0], row[3], row[5], row[6], row[7] or None, row[8] or None))
-                elif section == '--- Volontari ---' and row[0] != 'Email':
-                    if len(row) < 7:
+                    if row[0].startswith('---'):
+                        section = row[0]
                         continue
-                    volontari.append((row[0], row[1], row[2], row[3] or None, row[4] or None, row[5] or None, row[6] or None))
-                elif section == '--- Assistiti ---' and row[0] != 'Nome Sigla':
-                    if len(row) < 2:
-                        continue
-                    assistiti.append((row[0], row[1]))
+                    if section == '--- Visite ---' and row[0] != 'Volontario Email':
+                        if len(row) < 9:
+                            continue
+                        visite.append((row[0], row[3], row[5], row[6], row[7] or None, row[8] or None))
+                    elif section == '--- Volontari ---' and row[0] != 'Email':
+                        if len(row) < 7:
+                            continue
+                        volontari.append((row[0], row[1], row[2], row[3] or None, row[4] or None, row[5] or None, row[6] or None))
+                    elif section == '--- Assistiti ---' and row[0] != 'Nome Sigla':
+                        if len(row) < 2:
+                            continue
+                        assistiti.append((row[0], row[1]))
 
-            # Inserisci i dati
-            for assistito in assistiti:
-                cur.execute("INSERT INTO assistiti (nome_sigla, citta) VALUES (%s, %s)", assistito)
-            for volontario in volontari:
-                cur.execute("""
-                    INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, volontario)
-            for visita in visite:
-                cur.execute("""
-                    INSERT INTO visite (volontario_email, assistito_nome, accoglienza, data_visita, necessita, cosa_migliorare)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, visita)
+                # Inserisci i dati
+                for assistito in assistiti:
+                    cur.execute("INSERT INTO assistiti (nome_sigla, citta) VALUES (%s, %s)", assistito)
+                for volontario in volontari:
+                    cur.execute("""
+                        INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, volontario)
+                for visita in visite:
+                    cur.execute("""
+                        INSERT INTO visite (volontario_email, assistito_nome, accoglienza, data_visita, necessita, cosa_migliorare)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, visita)
 
-            conn.commit()
-            flash("Dati ripristinati con successo!", "success")
-            return redirect(url_for('report'))
-        except psycopg.OperationalError as e:
-            flash(f"Errore nel ripristino: {e}", "error")
-        except Exception as e:
-            flash(f"Errore generico nel ripristino: {e}", "error")
-        finally:
-            cur.close()
-            conn.close()
+                conn.commit()
+                flash("Dati ripristinati con successo!", "success")
+                return redirect(url_for('report'))
+            except psycopg.OperationalError as e:
+                flash(f"Errore nel ripristino: {e}", "error")
+            except Exception as e:
+                flash(f"Errore generico nel ripristino: {e}", "error")
+            finally:
+                cur.close()
+                conn.close()
 
-    return render_template('restore.html')
+    return render_template('restore.html', backup_files=backup_files)
 
 # Pulizia visite
 @app.route('/clean', methods=['POST'])

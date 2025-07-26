@@ -1,29 +1,45 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Ripristino Dati</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <p>Carica un file CSV di backup per ripristinare i dati. Questa azione cancellerà i dati attuali e richiede la password amministrativa.</p>
-    <form method="POST" enctype="multipart/form-data">
-        <div class="mb-3">
-            <label for="password" class="form-label">Password Amministratore</label>
-            <input type="password" class="form-control" id="password" name="password" required>
-        </div>
-        <div class="mb-3">
-            <label for="file" class="form-label">File CSV di Backup</label>
-            <input type="file" class="form-control" id="file" name="file" accept=".csv" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Ripristina</button>
-        <a href="{{ url_for('report') }}" class="btn btn-secondary">Annulla</a>
-    </form>
-</div>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ripristino Dati</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <h2>Ripristino Dati</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="mb-3">
+                <label for="file" class="form-label">Carica un file CSV</label>
+                <input type="file" class="form-control" id="file" name="file" accept=".csv">
+            </div>
+            <div>
+                <label for="backup_file_select">Seleziona un backup esistente:</label>
+                <select name="backup_file_select" id="backup_file_select" class="form-control">
+                    <option value="">-- Seleziona un backup --</option>
+                    {% for file in backup_files %}
+                        <option value="{{ file }}">{{ file }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="restore_selected" class="btn btn-primary mt-2">Ripristina selezionato</button>
+            </div>
+            <button type="submit" class="btn btn-success mt-3">Ripristina</button>
+            <a href="{{ url_for('report') }}" class="btn btn-secondary mt-3">Torna al report</a>
+        </form>
+    </div>
+</body>
+</html>
