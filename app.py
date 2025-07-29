@@ -1,13 +1,10 @@
 import os
-try:
-    import fpdf2
-    print("fpdf2 importato con successo")
-except ImportError as e:
-    print(f"Errore importazione fpdf2: {e}")
-    raise
 import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
-from fpdf2 import FPDF
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
+
 import csv
 from io import BytesIO, StringIO
 from datetime import datetime
@@ -253,6 +250,8 @@ def report():
     return render_template('report.html', visite=visite, statistiche=statistiche, 
                           volontari=volontari, filtro_volontario=volontario_email, 
                           data_inizio=data_inizio, data_fine=data_fine[:10] if data_fine and data_fine.endswith('23:59:59') else data_fine)
+
+
 @app.route('/download_pdf')
 def download_pdf():
     if not session.get('logged_in', False):
@@ -297,22 +296,30 @@ def download_pdf():
         cur.execute(query, params)
         visite = cur.fetchall()
 
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 8, txt="Report Visite", ln=1, align='C')
-        
-        for visita in visite:
-            pdf.cell(200, 6, txt=f"Volontario: {visita[7]} {visita[6]} ({visita[0]})", ln=1)
-            pdf.cell(200, 6, txt=f"Assistito: {visita[1]} ({visita[8]})", ln=1)
-            pdf.cell(200, 6, txt=f"Accoglienza: {visita[2]}", ln=1)
-            pdf.cell(200, 6, txt=f"Data: {visita[3]}", ln=1)
-            pdf.cell(200, 6, txt=f"Necessità: {visita[4] or 'Nessuna'}", ln=1)
-            pdf.cell(200, 6, txt=f"Miglioramenti: {visita[5] or 'Nessuno'}", ln=1)
-            pdf.cell(200, 6, txt="", ln=1)
-
         pdf_output = BytesIO()
-        pdf_output.write(pdf.output(dest='S'))
+        pdf = canvas.Canvas(pdf_output, pagesize=A4)
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(100, 800, "Report Visite")
+        
+        y = 780
+        for visita in visite:
+            pdf.drawString(50, y, f"Volontario: {visita[7]} {visita[6]} ({visita[0]})")
+            y -= 20
+            pdf.drawString(50, y, f"Assistito: {visita[1]} ({visita[8]})")
+            y -= 20
+            pdf.drawString(50, y, f"Accoglienza: {visita[2]}")
+            y -= 20
+            pdf.drawString(50, y, f"Data: {visita[3]}")
+            y -= 20
+            pdf.drawString(50, y, f"Necessità: {visita[4] or 'Nessuna'}")
+            y -= 20
+            pdf.drawString(50, y, f"Miglioramenti: {visita[5] or 'Nessuno'}")
+            y -= 40
+            if y < 50:
+                pdf.showPage()
+                y = 800
+
+        pdf.save()
         pdf_output.seek(0)
         
         return send_file(pdf_output, download_name="report_visite.pdf", as_attachment=True)
