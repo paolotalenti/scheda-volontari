@@ -1,24 +1,23 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Login Amministratore</h1>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Amministratore</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Login Amministratore</h1>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
+                <p class="{{ category }}">{{ message }}</p>
             {% endfor %}
         {% endif %}
     {% endwith %}
-    <form method="POST">
-        <div class="mb-3">
-            <label for="password" class="form-label">Password Amministratore</label>
-            <input type="password" class="form-control" id="password" name="password" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Login</button>
-        <a href="{{ url_for('inserisci_visita') }}" class="btn btn-secondary">Torna alla Home</a>
+    <form method="post" action="{{ url_for('admin_login') }}">
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required>
+        <button type="submit">Login</button>
     </form>
-</div>
-{% endblock %}
+</body>
+</html>

@@ -1,77 +1,42 @@
-{% extends "base.html" %}
-
-{% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Inserisci Visita</h1>
-    
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Inserisci Visita</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Inserisci Visita</h1>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
+                <p class="{{ category }}">{{ message }}</p>
             {% endfor %}
         {% endif %}
     {% endwith %}
-
-    <form method="POST" action="{{ url_for('inserisci_visita') }}">
-        <div class="mb-3">
-            <label for="volontario_email" class="form-label">Email Volontario</label>
-            <input type="email" class="form-control" id="volontario_email" name="volontario_email" required>
-        </div>
-        <div class="mb-3">
-            <label for="volontario_cognome" class="form-label">Cognome Volontario (obbligatorio solo per nuovi volontari)</label>
-            <input type="text" class="form-control" id="volontario_cognome" name="volontario_cognome">
-        </div>
-        <div class="mb-3">
-            <label for="volontario_nome" class="form-label">Nome Volontario (obbligatorio solo per nuovi volontari)</label>
-            <input type="text" class="form-control" id="volontario_nome" name="volontario_nome">
-        </div>
-        <div class="mb-3">
-            <label for="telefono" class="form-label">Telefono (opzionale)</label>
-            <input type="text" class="form-control" id="telefono" name="telefono">
-        </div>
-        <div class="mb-3">
-            <label for="competenze" class="form-label">Competenze (opzionale)</label>
-            <textarea class="form-control" id="competenze" name="competenze" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="disponibilita" class="form-label">Disponibilità (opzionale)</label>
-            <textarea class="form-control" id="disponibilita" name="disponibilita" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="assistito_nome" class="form-label">Assistito</label>
-            <select class="form-select" id="assistito_nome" name="assistito_nome" required>
-                <option value="">Seleziona un assistito</option>
-                {% for assistito in assistiti %}
-                    <option value="{{ assistito[0] }}">{{ assistito[0] }} ({{ assistito[1] }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="mb-3">
-            <label for="accoglienza" class="form-label">Accoglienza</label>
-            <select class="form-select" id="accoglienza" name="accoglienza" required>
-                <option value="">Seleziona un livello</option>
-                <option value="Buona">Buona</option>
-                <option value="Media">Media</option>
-                <option value="Scarsa">Scarsa</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label for="data_visita" class="form-label">Data Visita</label>
-            <input type="date" class="form-control" id="data_visita" name="data_visita" required>
-        </div>
-        <div class="mb-3">
-            <label for="necessita" class="form-label">Necessità</label>
-            <textarea class="form-control" id="necessita" name="necessita" rows="4"></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="cosa_migliorare" class="form-label">Cosa Migliorare</label>
-            <textarea class="form-control" id="cosa_migliorare" name="cosa_migliorare" rows="4"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Inserisci Visita</button>
-        <a href="{{ url_for('manuale') }}" class="btn btn-secondary">Manuale</a>
+    <form method="post" action="{{ url_for('inserisci_visita') }}">
+        <label for="volontario_email">Volontario:</label>
+        <select name="volontario_email" id="volontario_email" required>
+            {% for volontario in volontari %}
+                <option value="{{ volontario[0] }}">{{ volontario[2] }} {{ volontario[1] }}</option>
+            {% endfor %}
+        </select>
+        <label for="assistito_nome">Assistito:</label>
+        <select name="assistito_nome" id="assistito_nome" required>
+            {% for assistito in assistiti %}
+                <option value="{{ assistito[0] }}">{{ assistito[0] }} ({{ assistito[1] }})</option>
+            {% endfor %}
+        </select>
+        <label for="accoglienza">Accoglienza:</label>
+        <input type="text" name="accoglienza" id="accoglienza" required>
+        <label for="data_visita">Data Visita:</label>
+        <input type="date" name="data_visita" id="data_visita" required>
+        <label for="necessita">Necessità:</label>
+        <input type="text" name="necessita" id="necessita">
+        <label for="cosa_migliorare">Cosa Migliorare:</label>
+        <input type="text" name="cosa_migliorare" id="cosa_migliorare">
+        <button type="submit">Inserisci</button>
     </form>
-</div>
-{% endblock %}
+    <a href="{{ url_for('admin_login') }}">Torna al Login</a>
+</body>
+</html>

@@ -1,86 +1,67 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4">Report Visite</h2>
-    <form method="POST" class="mb-4">
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <label for="volontario_email" class="form-label">Volontario</label>
-                <select class="form-select" id="volontario_email" name="volontario_email">
-                    <option value="">Tutti i volontari</option>
-                    {% for volontario in volontari %}
-                    <option value="{{ volontario[0] }}" {% if volontario[0] == filtro_volontario %}selected{% endif %}>
-                        {{ volontario[1] }} {{ volontario[2] }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4 mb-3">
-                <label for="data_inizio" class="form-label">Data Inizio</label>
-                <input type="date" class="form-control" id="data_inizio" name="data_inizio" value="{{ data_inizio }}" max="2025-07-28">
-            </div>
-            <div class="col-md-4 mb-3">
-                <label for="data_fine" class="form-label">Data Fine</label>
-                <input type="date" class="form-control" id="data_fine" name="data_fine" value="{{ data_fine }}" max="2025-07-28">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">Filtra</button>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Report Visite</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Report Visite</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="post">
+        <label for="volontario_email">Volontario:</label>
+        <select name="volontario_email" id="volontario_email">
+            <option value="">Tutti</option>
+            {% for volontario in volontari %}
+                <option value="{{ volontario[0] }}" {% if volontario[0] == filters.volontario_email %}selected{% endif %}>{{ volontario[2] }} {{ volontario[1] }}</option>
+            {% endfor %}
+        </select>
+        <label for="data_inizio">Data Inizio:</label>
+        <input type="date" name="data_inizio" id="data_inizio" value="{{ filters.data_inizio }}">
+        <label for="data_fine">Data Fine:</label>
+        <input type="date" name="data_fine" id="data_fine" value="{{ filters.data_fine }}">
+        <button type="submit">Filtra</button>
     </form>
-
-    <h3>Statistiche</h3>
-    <ul>
-        <li>Totale visite: {{ statistiche.totale_visite }}</li>
-        <li>Accoglienza: Buona ({{ statistiche.accoglienza.Buona }}), Media ({{ statistiche.accoglienza.Media }}), Scarsa ({{ statistiche.accoglienza.Scarsa }})</li>
-        <li>Visite per città:
-            <ul>
-                {% for citta, count in statistiche.visite_per_citta.items() %}
-                <li>{{ citta }}: {{ count }}</li>
-                {% endfor %}
-            </ul>
-        </li>
-    </ul>
-
-    <h3>Elenco Visite</h3>
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Volontario</th>
-                <th>Assistito</th>
-                <th>Città</th>
-                <th>Accoglienza</th>
-                <th>Data</th>
-                <th>Necessità</th>
-                <th>Miglioramenti</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for visita in visite %}
+    <table>
+        <tr>
+            <th>Volontario</th>
+            <th>Assistito</th>
+            <th>Città</th>
+            <th>Accoglienza</th>
+            <th>Data</th>
+            <th>Necessità</th>
+            <th>Miglioramenti</th>
+        </tr>
+        {% for visita in visite %}
             <tr>
                 <td>{{ visita[7] }} {{ visita[6] }} ({{ visita[0] }})</td>
-                <td>{{ visita[1] }}</td>
+                <td>{{ visita[1] }} ({{ visita[8] }})</td>
                 <td>{{ visita[8] }}</td>
                 <td>{{ visita[2] }}</td>
                 <td>{{ visita[3] }}</td>
                 <td>{{ visita[4] or 'Nessuna' }}</td>
                 <td>{{ visita[5] or 'Nessuno' }}</td>
             </tr>
-            {% endfor %}
-        </tbody>
+        {% endfor %}
     </table>
-
-    <div class="mb-4">
-        <a href="{{ url_for('download_pdf') }}" class="btn btn-success">Scarica PDF</a>
-        <a href="{{ url_for('download_csv') }}" class="btn btn-success">Scarica CSV</a>
-        <a href="{{ url_for('backup') }}" class="btn btn-info">Backup Dati</a>
-        <a href="{{ url_for('restore') }}" class="btn btn-warning">Ripristina Dati</a>
-        <form action="{{ url_for('clean') }}" method="POST" class="d-inline">
-            <input type="password" name="password" class="form-control d-inline-block w-auto" placeholder="Password amministratore" required>
-            <button type="submit" class="btn btn-warning" onclick="return confirm('Sei sicuro di voler eliminare le visite filtrate?')">Pulisci Visite Filtrate</button>
-        </form>
-        <form action="{{ url_for('clean_volontari') }}" method="POST" class="d-inline">
-            <input type="password" name="password" class="form-control d-inline-block w-auto" placeholder="Password amministratore" required>
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Sei sicuro di voler eliminare tutti i dati? Questa azione è irreversibile.')">Pulisci Tutto</button>
-        </form>
-    </div>
-</div>
-{% endblock %}
+    <form action="{{ url_for('download_pdf') }}">
+        <button type="submit">Scarica PDF</button>
+    </form>
+    <form action="{{ url_for('download_csv') }}">
+        <button type="submit">Scarica CSV</button>
+    </form>
+    <form method="post" action="{{ url_for('clean') }}">
+        <input type="password" name="password" placeholder="Password amministratore">
+        <button type="submit">Pulisci Visite Filtrate</button>
+    </form>
+    <a href="{{ url_for('backup') }}">Esegui Backup</a>
+    <a href="{{ url_for('restore') }}">Ripristina Backup</a>
+    <a href="{{ url_for('volontari') }}">Gestione Volontari</a>
+</body>
+</html>
