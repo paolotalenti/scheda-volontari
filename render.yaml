@@ -1,10 +1,11 @@
 services:
   - type: web
-    name: scheda-volontari1
+    name: scheda-volontari2
     env: python
     branch: main
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --no-cache-dir -r requirements.txt
     startCommand: gunicorn app:app
+    autoDeploy: false
     envVars:
       - key: DATABASE_URL
         value: postgresql://scheda_volontari_db_user:BinpunB9DxRfi7p0VD9a7cnSW2cL$@host:port/db_name
@@ -14,5 +15,3 @@ services:
         value: MySecurePass2025!
       - key: TZ
         value: Europe/Rome
-      - key: PYTHONPATH
-        value: /opt/render/project/src/.venv/lib/python3.13/site-packages
