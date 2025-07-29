@@ -17,11 +17,11 @@
             </div>
             <div class="col-md-4 mb-3">
                 <label for="data_inizio" class="form-label">Data Inizio</label>
-                <input type="date" class="form-control" id="data_inizio" name="data_inizio" value="{{ data_inizio }}">
+                <input type="date" class="form-control" id="data_inizio" name="data_inizio" value="{{ data_inizio }}" max="2025-07-28">
             </div>
             <div class="col-md-4 mb-3">
                 <label for="data_fine" class="form-label">Data Fine</label>
-                <input type="date" class="form-control" id="data_fine" name="data_fine" value="{{ data_fine }}">
+                <input type="date" class="form-control" id="data_fine" name="data_fine" value="{{ data_fine }}" max="2025-07-28">
             </div>
         </div>
         <button type="submit" class="btn btn-primary">Filtra</button>
@@ -74,6 +74,7 @@
         <a href="{{ url_for('backup') }}" class="btn btn-info">Backup Dati</a>
         <a href="{{ url_for('restore') }}" class="btn btn-warning">Ripristina Dati</a>
         <form action="{{ url_for('clean') }}" method="POST" class="d-inline">
+            <input type="password" name="password" class="form-control d-inline-block w-auto" placeholder="Password amministratore" required>
             <button type="submit" class="btn btn-warning" onclick="return confirm('Sei sicuro di voler eliminare le visite filtrate?')">Pulisci Visite Filtrate</button>
         </form>
         <form action="{{ url_for('clean_volontari') }}" method="POST" class="d-inline">

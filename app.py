@@ -1,109 +1,112 @@
 import os
 import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
-from fpdf import FPDF
+from fpdf2 import FPDF
 import csv
 from io import BytesIO, StringIO
 from datetime import datetime
-import schedule
 import time
-import threading
+import pytz
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
+import logging
+
+# Configura il logging
+logging.basicConfig(filename='backup.log', level=logging.INFO)
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+if not ADMIN_PASSWORD:
+    raise ValueError("ADMIN_PASSWORD non definita nel file .env")
 
 # Connessione al database PostgreSQL
 def get_db_connection():
     try:
-        return psycopg.connect(os.getenv('DATABASE_URL'))
+        conn = psycopg.connect(os.getenv('DATABASE_URL'))
+        conn.execute("SET TIME ZONE 'Europe/Rome'")
+        return conn
     except psycopg.OperationalError as e:
         print(f"Errore di connessione al database: {e}")
         raise
 
 # Backup automatico
 def backup_automatico():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        print("Inizio backup automatico alle:", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        # Backup visite
-        cur.execute("""
-            SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
-                   vol.cognome, vol.nome, ass.citta
-            FROM visite v
-            JOIN volontari vol ON v.volontario_email = vol.email
-            JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
-        """)
-        visite = cur.fetchall()
+    logging.info(f"Inizio backup automatico alle: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    for attempt in range(3):
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
+                       vol.cognome, vol.nome, ass.citta
+                FROM visite v
+                JOIN volontari vol ON v.volontario_email = vol.email
+                JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
+            """)
+            visite = cur.fetchall()
 
-        cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
-        volontari = cur.fetchall()
+            cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
+            volontari = cur.fetchall()
 
-        cur.execute("SELECT nome_sigla, citta FROM assistiti")
-        assistiti = cur.fetchall()
+            cur.execute("SELECT nome_sigla, citta FROM assistiti")
+            assistiti = cur.fetchall()
 
-        base_path = os.path.join(os.path.dirname(__file__), 'backups')
-        os.makedirs(base_path, exist_ok=True)
-        filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-        
-        with open(filename, 'w', newline='', encoding='utf-8') as output_file:
-            writer = csv.writer(output_file, lineterminator='\n')
-            writer.writerow(['--- Visite ---'])
-            writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
-            for visita in visite:
-                writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
+            base_path = os.path.join(os.path.dirname(__file__), 'backups')
+            os.makedirs(base_path, exist_ok=True)
+            filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            
+            with open(filename, 'w', newline='', encoding='utf-8') as output_file:
+                writer = csv.writer(output_file, lineterminator='\n')
+                writer.writerow(['--- Visite ---'])
+                writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
+                for visita in visite:
+                    writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
 
-            writer.writerow(['--- Volontari ---'])
-            writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
-            for volontario in volontari:
-                writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
+                writer.writerow(['--- Volontari ---'])
+                writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
+                for volontario in volontari:
+                    writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
 
-            writer.writerow(['--- Assistiti ---'])
-            writer.writerow(['Nome Sigla', 'Città'])
-            for assistito in assistiti:
-                writer.writerow([assistito[0], assistito[1]])
-        print(f"Backup creato: {filename}")
+                writer.writerow(['--- Assistiti ---'])
+                writer.writerow(['Nome Sigla', 'Città'])
+                for assistito in assistiti:
+                    writer.writerow([assistito[0], assistito[1]])
+            
+            logging.info(f"Backup creato: {filename}")
 
-        # Cancella backup vecchi (oltre 7 giorni)
-        now = datetime.now()
-        for file in os.listdir(base_path):
-            file_path = os.path.join(base_path, file)
-            if os.path.isfile(file_path):
-                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                if (now - file_time).days > 7:
-                    os.remove(file_path)
-                    print(f"Eliminato backup vecchio: {file}")
+            now = datetime.now()
+            for file in os.listdir(base_path):
+                file_path = os.path.join(base_path, file)
+                if os.path.isfile(file_path):
+                    file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    if (now - file_time).days > 7:
+                        os.remove(file_path)
+                        logging.info(f"Eliminato backup vecchio: {file}")
+            break
+        except psycopg.OperationalError as e:
+            logging.error(f"Tentativo {attempt + 1} fallito: {e}")
+            time.sleep(5)
+        finally:
+            if 'cur' in locals():
+                cur.close()
+            if 'conn' in locals():
+                conn.close()
 
-    except psycopg.OperationalError as e:
-        print(f"Errore nel backup automatico: {e}")
-    finally:
-        cur.close()
-        conn.close()
+scheduler = BackgroundScheduler(timezone="Europe/Rome")
+scheduler.add_job(backup_automatico, 'cron', hour=2, minute=0)
+scheduler.start()
 
-# Avvia il backup automatico ogni giorno alle 02:00
-def run_scheduler():
-    schedule.every().day.at("02:00").do(backup_automatico)
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
-# Avvia il thread per il backup automatico
-threading.Thread(target=run_scheduler, daemon=True).start()
-
-# Homepage
 @app.route('/')
 def home():
     return redirect(url_for('inserisci_visita'))
 
-# Favicon
 @app.route('/favicon.ico')
 def favicon():
     return send_file('static/favicon.ico')
 
-# Login amministratore
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     try:
@@ -112,7 +115,7 @@ def admin_login():
             if not password:
                 flash('Inserisci una password.', 'error')
                 return render_template('admin_login.html')
-            if password == 'admin123':
+            if password == ADMIN_PASSWORD:
                 session['logged_in'] = True
                 return redirect(url_for('report'))
             else:
@@ -123,7 +126,6 @@ def admin_login():
         print(f"Errore in /admin_login: {e}")
         raise
 
-# Report
 @app.route('/report', methods=['GET', 'POST'])
 def report():
     if not session.get('logged_in', False):
@@ -132,10 +134,21 @@ def report():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # Filtri
     volontario_email = request.form.get('volontario_email', '')
     data_inizio = request.form.get('data_inizio', '')
     data_fine = request.form.get('data_fine', '')
+
+    print(f"volontario_email: {volontario_email}, data_inizio: {data_inizio}, data_fine: {data_fine}")
+
+    try:
+        if data_inizio:
+            datetime.strptime(data_inizio, '%Y-%m-%d')
+        if data_fine:
+            datetime.strptime(data_fine, '%Y-%m-%d')
+            data_fine = f"{data_fine} 23:59:59"
+    except ValueError as e:
+        flash(f"Formato data non valido: {e}", "error")
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
 
     query = """
         SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
@@ -161,29 +174,25 @@ def report():
         cur.execute(query, params)
         visite = cur.fetchall()
     
-        # Query per il conteggio totale
-        count_query = "SELECT COUNT(*) FROM visite"
+        count_query = "SELECT COUNT(*) FROM visite WHERE 1=1"
         if params:
-            count_query += " WHERE 1=1"
             if volontario_email:
                 count_query += " AND volontario_email = %s"
             if data_inizio:
                 count_query += " AND data_visita >= %s"
             if data_fine:
-                count_query += " AND v.data_visita <= %s"
+                count_query += " AND data_visita <= %s"
         cur.execute(count_query, params)
         totale_visite = cur.fetchone()[0]
 
-        # Query per accoglienza
-        accoglienza_query = "SELECT accoglienza, COUNT(*) FROM visite"
+        accoglienza_query = "SELECT accoglienza, COUNT(*) FROM visite WHERE 1=1"
         if params:
-            accoglienza_query += " WHERE 1=1"
             if volontario_email:
                 accoglienza_query += " AND volontario_email = %s"
             if data_inizio:
                 accoglienza_query += " AND data_visita >= %s"
             if data_fine:
-                accoglienza_query += " AND v.data_visita <= %s"
+                accoglienza_query += " AND data_visita <= %s"
         accoglienza_query += " GROUP BY accoglienza"
         cur.execute(accoglienza_query, params)
         accoglienza_rows = cur.fetchall()
@@ -191,14 +200,13 @@ def report():
         for row in accoglienza_rows:
             accoglienza[row[0]] = row[1]
 
-        # Query per visite per città
         citta_query = """
             SELECT ass.citta, COUNT(*) 
             FROM visite v 
             JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
+            WHERE 1=1
         """
         if params:
-            citta_query += " WHERE 1=1"
             if volontario_email:
                 citta_query += " AND v.volontario_email = %s"
             if data_inizio:
@@ -218,38 +226,44 @@ def report():
             'visite_per_citta': visite_per_citta
         }
     
-        # Salva i filtri nella sessione per CSV, PDF e pulizia
         session['report_filters'] = {
             'volontario_email': volontario_email,
             'data_inizio': data_inizio,
-            'data_fine': data_fine
+            'data_fine': data_fine if not data_fine.endswith('23:59:59') else data_fine[:10]
         }
     
     except psycopg.OperationalError as e:
+        print(f"Errore SQL: {e}")
         flash(f"Errore nel database: {e}", "error")
-        visite = []
-        statistiche = {'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}
-        volontari = []
-    
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
+    except Exception as e:
+        print(f"Errore generico: {e}")
+        flash(f"Errore imprevisto: {e}", "error")
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
     finally:
         cur.close()
         conn.close()
     
     return render_template('report.html', visite=visite, statistiche=statistiche, 
                           volontari=volontari, filtro_volontario=volontario_email, 
-                          data_inizio=data_inizio, data_fine=data_fine)
-
-# Download PDF
+                          data_inizio=data_inizio, data_fine=data_fine[:10] if data_fine and data_fine.endswith('23:59:59') else data_fine)
 @app.route('/download_pdf')
 def download_pdf():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    # Recupera i filtri dalla sessione
     filters = session.get('report_filters', {})
     volontario_email = filters.get('volontario_email', '')
     data_inizio = filters.get('data_inizio', '')
     data_fine = filters.get('data_fine', '')
+
+    if data_fine:
+        try:
+            datetime.strptime(data_fine, '%Y-%m-%d')
+            data_fine = f"{data_fine} 23:59:59"
+        except ValueError:
+            flash("Formato data non valido.", "error")
+            return redirect(url_for('report'))
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -292,7 +306,7 @@ def download_pdf():
             pdf.cell(200, 6, txt="", ln=1)
 
         pdf_output = BytesIO()
-        pdf_output.write(pdf.output(dest='S').encode('latin1'))
+        pdf_output.write(pdf.output(dest='S'))
         pdf_output.seek(0)
         
         return send_file(pdf_output, download_name="report_visite.pdf", as_attachment=True)
@@ -303,17 +317,23 @@ def download_pdf():
         cur.close()
         conn.close()
 
-# Download CSV
 @app.route('/download_csv')
 def download_csv():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    # Recupera i filtri dalla sessione
     filters = session.get('report_filters', {})
     volontario_email = filters.get('volontario_email', '')
     data_inizio = filters.get('data_inizio', '')
     data_fine = filters.get('data_fine', '')
+
+    if data_fine:
+        try:
+            datetime.strptime(data_fine, '%Y-%m-%d')
+            data_fine = f"{data_fine} 23:59:59"
+        except ValueError:
+            flash("Formato data non valido.", "error")
+            return redirect(url_for('report'))
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -358,7 +378,6 @@ def download_csv():
         cur.close()
         conn.close()
 
-# Backup manuale
 @app.route('/backup')
 def backup():
     if not session.get('logged_in', False):
@@ -367,7 +386,6 @@ def backup():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Backup visite
         cur.execute("""
             SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
                    vol.cognome, vol.nome, ass.citta
@@ -377,11 +395,9 @@ def backup():
         """)
         visite = cur.fetchall()
 
-        # Backup volontari
         cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
         volontari = cur.fetchall()
 
-        # Backup assistiti
         cur.execute("SELECT nome_sigla, citta FROM assistiti")
         assistiti = cur.fetchall()
 
@@ -416,7 +432,6 @@ def backup():
         cur.close()
         conn.close()
 
-# Ripristino dati
 @app.route('/restore', methods=['GET', 'POST'])
 def restore():
     if not session.get('logged_in', False):
@@ -432,7 +447,7 @@ def restore():
 
     if request.method == 'POST':
         password = request.form.get('password')
-        if password != 'admin123':
+        if password != ADMIN_PASSWORD:
             flash("Password errata per il ripristino.", "error")
             return render_template('restore.html', backup_files=backup_files)
 
@@ -442,13 +457,11 @@ def restore():
                 conn = get_db_connection()
                 cur = conn.cursor()
 
-                # Pulizia del database
                 cur.execute("DELETE FROM visite")
                 cur.execute("DELETE FROM volontari")
                 cur.execute("DELETE FROM assistiti")
                 conn.commit()
 
-                # Leggi il file CSV
                 file_path = os.path.join(base_path, selected_file)
                 with open(file_path, 'r', encoding='utf-8-sig') as f:
                     content = f.read().splitlines()
@@ -460,9 +473,8 @@ def restore():
                 volontari = []
                 visite = []
 
-                # Raccogli i dati
                 for i, row in enumerate(reader):
-                    if not row or not any(row):  # Ignora righe vuote
+                    if not row or not any(row):
                         continue
                     if row[0].startswith('---'):
                         section = row[0]
@@ -480,7 +492,6 @@ def restore():
                             continue
                         assistiti.append((row[0], row[1]))
 
-                # Inserisci i dati
                 for assistito in assistiti:
                     cur.execute("INSERT INTO assistiti (nome_sigla, citta) VALUES (%s, %s)", assistito)
                 for volontario in volontari:
@@ -507,17 +518,28 @@ def restore():
 
     return render_template('restore.html', backup_files=backup_files)
 
-# Pulizia visite
 @app.route('/clean', methods=['POST'])
 def clean():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    # Recupera i filtri dalla sessione
+    password = request.form.get('password')
+    if password != ADMIN_PASSWORD:
+        flash("Password amministratore errata.", "error")
+        return redirect(url_for('report'))
+
     filters = session.get('report_filters', {})
     volontario_email = filters.get('volontario_email', '')
     data_inizio = filters.get('data_inizio', '')
     data_fine = filters.get('data_fine', '')
+
+    if data_fine:
+        try:
+            datetime.strptime(data_fine, '%Y-%m-%d')
+            data_fine = f"{data_fine} 23:59:59"
+        except ValueError:
+            flash("Formato data non valido.", "error")
+            return redirect(url_for('report'))
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -533,7 +555,7 @@ def clean():
                 query += " AND data_visita >= %s"
                 params.append(data_inizio)
             if data_fine:
-                query += " AND v.data_visita <= %s"
+                query += " AND data_visita <= %s"
                 params.append(data_fine)
         cur.execute(query, params)
         conn.commit()
@@ -545,15 +567,13 @@ def clean():
         conn.close()
     return redirect(url_for('report'))
 
-# Pulizia completa
 @app.route('/clean_volontari', methods=['POST'])
 def clean_volontari():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    # Richiedi conferma password
     password = request.form.get('password')
-    if password != 'admin123':
+    if password != ADMIN_PASSWORD:
         flash("Password errata per la pulizia completa.", "error")
         return redirect(url_for('report'))
 
@@ -572,7 +592,6 @@ def clean_volontari():
         conn.close()
     return redirect(url_for('report'))
 
-# Manuale
 @app.route('/manuale')
 def manuale():
     if not session.get('logged_in', False):
@@ -580,7 +599,6 @@ def manuale():
     
     return render_template('manuale.html')
 
-# Lista volontari
 @app.route('/volontari', methods=['GET'])
 def lista_volontari():
     if not session.get('logged_in', False):
@@ -600,7 +618,6 @@ def lista_volontari():
     
     return render_template('volontari.html', volontari=volontari)
 
-# Aggiungi volontario
 @app.route('/volontari/aggiungi', methods=['GET', 'POST'])
 def aggiungi_volontario():
     if not session.get('logged_in', False):
@@ -621,16 +638,18 @@ def aggiungi_volontario():
         conn = get_db_connection()
         cur = conn.cursor()
         try:
-            # Verifica se l'email esiste già
             cur.execute("SELECT email FROM volontari WHERE email = %s", (email,))
             if cur.fetchone():
                 flash(f"L'email {email} è già registrata.", "error")
                 return render_template('aggiungi_volontario.html')
             
+            cet = pytz.timezone('Europe/Rome')
+            data_iscrizione = datetime.now(cet)
+
             cur.execute("""
-                INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (email, cognome, nome, telefono, competenze, disponibilita))
+                INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione))
             conn.commit()
             flash(f"Volontario {nome} {cognome} aggiunto con successo!", "success")
             return redirect(url_for('lista_volontari'))
@@ -642,7 +661,6 @@ def aggiungi_volontario():
     
     return render_template('aggiungi_volontario.html')
 
-# Modifica volontario
 @app.route('/volontari/modifica/<email>', methods=['GET', 'POST'])
 def modifica_volontario(email):
     if not session.get('logged_in', False):
@@ -695,7 +713,6 @@ def modifica_volontario(email):
 
     return render_template('modifica_volontario.html', volontario=volontario)
 
-# Elimina volontario
 @app.route('/volontari/elimina/<email>', methods=['POST'])
 def elimina_volontario(email):
     if not session.get('logged_in', False):
@@ -721,10 +738,8 @@ def elimina_volontario(email):
     
     return redirect(url_for('lista_volontari'))
 
-# Inserisci visita (accessibile a tutti)
 @app.route('/inserisci_visita', methods=['GET', 'POST'])
 def inserisci_visita():
-    # Assicurati che la sessione non sia impostata come amministratore
     session['logged_in'] = False
 
     conn = get_db_connection()
@@ -768,10 +783,12 @@ def inserisci_visita():
                     cur.close()
                     conn.close()
                     return render_template('inserisci_visita.html', assistiti=assistiti)
+                cet = pytz.timezone('Europe/Rome')
+                data_iscrizione = datetime.now(cet)
                 cur.execute("""
-                    INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (volontario_email, volontario_cognome, volontario_nome, telefono, competenze, disponibilita))
+                    INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (volontario_email, volontario_cognome, volontario_nome, telefono, competenze, disponibilita, data_iscrizione))
 
             cur.execute("""
                 INSERT INTO visite (volontario_email, assistito_nome, accoglienza, data_visita, necessita, cosa_migliorare)
@@ -788,7 +805,6 @@ def inserisci_visita():
     
     return render_template('inserisci_visita.html', assistiti=assistiti)
 
-# Lista assistiti
 @app.route('/assistiti', methods=['GET'])
 def lista_assistiti():
     if not session.get('logged_in', False):
@@ -808,7 +824,6 @@ def lista_assistiti():
     
     return render_template('assistiti.html', assistiti=assistiti)
 
-# Aggiungi assistito
 @app.route('/assistiti/aggiungi', methods=['GET', 'POST'])
 def aggiungi_assistito():
     if not session.get('logged_in', False):
@@ -842,7 +857,6 @@ def aggiungi_assistito():
     
     return render_template('aggiungi_assistito.html')
 
-# Modifica assistito
 @app.route('/assistiti/modifica/<nome_sigla>', methods=['GET', 'POST'])
 def modifica_assistito(nome_sigla):
     if not session.get('logged_in', False):
@@ -883,7 +897,6 @@ def modifica_assistito(nome_sigla):
 
     return render_template('modifica_assistito.html', assistito=assistito)
 
-# Elimina assistito
 @app.route('/assistiti/elimina/<nome_sigla>', methods=['POST'])
 def elimina_assistito(nome_sigla):
     if not session.get('logged_in', False):
@@ -909,7 +922,6 @@ def elimina_assistito(nome_sigla):
     
     return redirect(url_for('lista_assistiti'))
 
-# Logout
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
@@ -918,5 +930,5 @@ def logout():
     return redirect(url_for('admin_login'))
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5001))  # Porta aggiornata a 5001
+    port = int(os.getenv('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=True)

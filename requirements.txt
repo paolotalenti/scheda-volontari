@@ -1,7 +1,8 @@
 flask>=2.3.0
-psycopg==3.2.2
+psycopg[binary]==3.2.2
 python-dotenv==0.21.0
-fpdf==1.7.2
-schedule==1.1.0
+fpdf2>=2.7.9
+apscheduler>=3.10.4
+pytz>=2024.1
 gunicorn==20.1.0
 werkzeug>=2.3.0,<3.0.0
