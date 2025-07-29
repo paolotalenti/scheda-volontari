@@ -14,3 +14,5 @@ services:
         value: MySecurePass2025!
       - key: TZ
         value: Europe/Rome
+      - key: PYTHONPATH
+        value: /opt/render/project/src/.venv/lib/python3.13/site-packages
