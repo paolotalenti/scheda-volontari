@@ -8,7 +8,7 @@ services:
     autoDeploy: false
     envVars:
       - key: DATABASE_URL
-        value: postgresql://scheda_volontari_db_user:BinpunB9DxRfi7p0VD9a7cnSW2cL$@host:port/db_name
+        value: postgresql://scheda_volontari_db_user:BinpunB9DxRfi7p0VD9a7cnSW2cLkGLx@dpg-d1ugj0emcj7s73egnoj0-a/scheda_volontari_db
       - key: SECRET_KEY
         value: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
       - key: ADMIN_PASSWORD
