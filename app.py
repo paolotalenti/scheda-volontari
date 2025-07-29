@@ -1,4 +1,10 @@
 import os
+try:
+    import fpdf2
+    print("fpdf2 importato con successo")
+except ImportError as e:
+    print(f"Errore importazione fpdf2: {e}")
+    raise
 import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from fpdf2 import FPDF
