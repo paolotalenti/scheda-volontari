@@ -3,9 +3,6 @@ import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from io import BytesIO
-
-import csv
 from io import BytesIO, StringIO
 from datetime import datetime
 import time
@@ -13,6 +10,7 @@ import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import logging
+import csv  # Aggiunto import csv
 
 # Configura il logging
 logging.basicConfig(filename='backup.log', level=logging.INFO)
@@ -32,13 +30,15 @@ def get_db_connection():
         conn.execute("SET TIME ZONE 'Europe/Rome'")
         return conn
     except psycopg.OperationalError as e:
-        print(f"Errore di connessione al database: {e}")
+        logging.error(f"Errore di connessione al database: {e}")
         raise
 
 # Backup automatico
 def backup_automatico():
     logging.info(f"Inizio backup automatico alle: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     for attempt in range(3):
+        conn = None
+        cur = None
         try:
             conn = get_db_connection()
             cur = conn.cursor()
@@ -93,9 +93,9 @@ def backup_automatico():
             logging.error(f"Tentativo {attempt + 1} fallito: {e}")
             time.sleep(5)
         finally:
-            if 'cur' in locals():
+            if cur:
                 cur.close()
-            if 'conn' in locals():
+            if conn:
                 conn.close()
 
 scheduler = BackgroundScheduler(timezone="Europe/Rome")
@@ -126,7 +126,7 @@ def admin_login():
                 return render_template('admin_login.html')
         return render_template('admin_login.html')
     except Exception as e:
-        print(f"Errore in /admin_login: {e}")
+        logging.error(f"Errore in /admin_login: {e}")
         raise
 
 @app.route('/report', methods=['GET', 'POST'])
@@ -141,7 +141,7 @@ def report():
     data_inizio = request.form.get('data_inizio', '')
     data_fine = request.form.get('data_fine', '')
 
-    print(f"volontario_email: {volontario_email}, data_inizio: {data_inizio}, data_fine: {data_fine}")
+    logging.info(f"volontario_email: {volontario_email}, data_inizio: {data_inizio}, data_fine: {data_fine}")
 
     try:
         if data_inizio:
@@ -151,7 +151,7 @@ def report():
             data_fine = f"{data_fine} 23:59:59"
     except ValueError as e:
         flash(f"Formato data non valido: {e}", "error")
-        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[], filtro_volontario='', data_inizio='', data_fine='')
 
     query = """
         SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
@@ -236,21 +236,22 @@ def report():
         }
     
     except psycopg.OperationalError as e:
-        print(f"Errore SQL: {e}")
+        logging.error(f"Errore SQL: {e}")
         flash(f"Errore nel database: {e}", "error")
-        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[], filtro_volontario='', data_inizio='', data_fine='')
     except Exception as e:
-        print(f"Errore generico: {e}")
+        logging.error(f"Errore generico: {e}")
         flash(f"Errore imprevisto: {e}", "error")
-        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[])
+        return render_template('report.html', visite=[], statistiche={'totale_visite': 0, 'accoglienza': {'Buona': 0, 'Media': 0, 'Scarsa': 0}, 'visite_per_citta': {}}, volontari=[], filtro_volontario='', data_inizio='', data_fine='')
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     
     return render_template('report.html', visite=visite, statistiche=statistiche, 
                           volontari=volontari, filtro_volontario=volontario_email, 
                           data_inizio=data_inizio, data_fine=data_fine[:10] if data_fine and data_fine.endswith('23:59:59') else data_fine)
-
 
 @app.route('/download_pdf')
 def download_pdf():
@@ -327,8 +328,10 @@ def download_pdf():
         flash(f"Errore nel database: {e}", "error")
         return redirect(url_for('report'))
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route('/download_csv')
 def download_csv():
@@ -388,8 +391,10 @@ def download_csv():
         flash(f"Errore nel database: {e}", "error")
         return redirect(url_for('report'))
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route('/backup')
 def backup():
@@ -435,15 +440,17 @@ def backup():
             for assistito in assistiti:
                 writer.writerow([assistito[0], assistito[1]])
         
-        print(f"Backup manuale creato: {filename}")
+        logging.info(f"Backup manuale creato: {filename}")
         flash("Backup creato con successo sul server!", "success")
         return redirect(url_for('report'))
     except psycopg.OperationalError as e:
         flash(f"Errore nel backup: {e}", "error")
         return redirect(url_for('report'))
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route('/restore', methods=['GET', 'POST'])
 def restore():
@@ -466,6 +473,8 @@ def restore():
 
         selected_file = request.form.get('backup_file_select')
         if selected_file:
+            conn = None
+            cur = None
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
@@ -526,8 +535,10 @@ def restore():
             except Exception as e:
                 flash(f"Errore generico nel ripristino: {e}", "error")
             finally:
-                cur.close()
-                conn.close()
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
 
     return render_template('restore.html', backup_files=backup_files)
 
@@ -576,8 +587,10 @@ def clean():
     except psycopg.OperationalError as e:
         flash(f"Errore nel database: {e}", "error")
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     return redirect(url_for('report'))
 
 @app.route('/clean_volontari', methods=['POST'])
@@ -601,8 +614,10 @@ def clean_volontari():
     except psycopg.OperationalError as e:
         flash(f"Errore nel database: {e}", "error")
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     return redirect(url_for('report'))
 
 @app.route('/manuale')
@@ -626,8 +641,10 @@ def lista_volontari():
         flash(f"Errore nel caricamento dei volontari: {e}", "error")
         volontari = []
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     
     return render_template('volontari.html', volontari=volontari)
 
@@ -669,8 +686,10 @@ def aggiungi_volontario():
         except psycopg.OperationalError as e:
             flash(f"Errore nell'aggiunta del volontario: {e}", "error")
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
     
     return render_template('aggiungi_volontario.html')
 
@@ -708,8 +727,10 @@ def modifica_volontario(email):
         except psycopg.OperationalError as e:
             flash(f"Errore nell'aggiornamento del volontario: {e}", "error")
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     try:
         cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita FROM volontari WHERE email = %s", (email,))
@@ -721,8 +742,10 @@ def modifica_volontario(email):
         flash(f"Errore nel caricamento del volontario: {e}", "error")
         volontario = None
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
     return render_template('modifica_volontario.html', volontario=volontario)
 
@@ -746,8 +769,10 @@ def elimina_volontario(email):
     except psycopg.OperationalError as e:
         flash(f"Errore nell'eliminazione del volontario: {e}", "error")
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     
     return redirect(url_for('lista_volontari'))
 
@@ -761,12 +786,22 @@ def inserisci_visita():
     try:
         cur.execute("SELECT nome_sigla, citta FROM assistiti ORDER BY nome_sigla")
         assistiti = cur.fetchall()
+        cur.execute("SELECT email, cognome, nome FROM volontari ORDER BY cognome, nome")
+        volontari = cur.fetchall()
     except psycopg.OperationalError as e:
         flash(f"Errore nel caricamento dei dati: {e}", "error")
         assistiti = []
+        volontari = []
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        return render_template('inserisci_visita.html', assistiti=assistiti, volontari=volontari)
+    
+    if cur:
         cur.close()
+    if conn:
         conn.close()
-        return render_template('inserisci_visita.html', assistiti=assistiti)
     
     if request.method == 'POST':
         volontario_email = request.form.get('volontario_email')
@@ -783,19 +818,22 @@ def inserisci_visita():
 
         if not volontario_email or not assistito_nome or not accoglienza or not data_visita:
             flash("Email, assistito, accoglienza e data visita sono obbligatori.", "error")
-            return render_template('inserisci_visita.html', assistiti=assistiti)
+            return render_template('inserisci_visita.html', assistiti=assistiti, volontari=volontari)
 
         conn = get_db_connection()
         cur = conn.cursor()
         try:
             cur.execute("SELECT email, cognome, nome FROM volontari WHERE email = %s", (volontario_email,))
             existing_volontario = cur.fetchone()
-            if not existing_volontario:
-                if not volontario_cognome or not volontario_nome:
-                    flash("Cognome e nome sono obbligatori per un nuovo volontario.", "error")
+            if not existing_volontario and (not volontario_cognome or not volontario_nome):
+                flash("Cognome e nome sono obbligatori per un nuovo volontario.", "error")
+                if cur:
                     cur.close()
+                if conn:
                     conn.close()
-                    return render_template('inserisci_visita.html', assistiti=assistiti)
+                return render_template('inserisci_visita.html', assistiti=assistiti, volontari=volontari)
+
+            if not existing_volontario:
                 cet = pytz.timezone('Europe/Rome')
                 data_iscrizione = datetime.now(cet)
                 cur.execute("""
@@ -813,10 +851,12 @@ def inserisci_visita():
         except psycopg.OperationalError as e:
             flash(f"Errore nell'inserimento della visita: {e}", "error")
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
     
-    return render_template('inserisci_visita.html', assistiti=assistiti)
+    return render_template('inserisci_visita.html', assistiti=assistiti, volontari=volontari)
 
 @app.route('/assistiti', methods=['GET'])
 def lista_assistiti():
@@ -832,8 +872,10 @@ def lista_assistiti():
         flash(f"Errore nel caricamento degli assistiti: {e}", "error")
         assistiti = []
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     
     return render_template('assistiti.html', assistiti=assistiti)
 
@@ -865,8 +907,10 @@ def aggiungi_assistito():
         except psycopg.OperationalError as e:
             flash(f"Errore nell'aggiunta dell'assistito: {e}", "error")
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
     
     return render_template('aggiungi_assistito.html')
 
@@ -892,8 +936,10 @@ def modifica_assistito(nome_sigla):
         except psycopg.OperationalError as e:
             flash(f"Errore nell'aggiornamento dell'assistito: {e}", "error")
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     try:
         cur.execute("SELECT nome_sigla, citta FROM assistiti WHERE nome_sigla = %s", (nome_sigla,))
@@ -905,8 +951,10 @@ def modifica_assistito(nome_sigla):
         flash(f"Errore nel caricamento dell'assistito: {e}", "error")
         assistito = None
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
     return render_template('modifica_assistito.html', assistito=assistito)
 
@@ -930,8 +978,10 @@ def elimina_assistito(nome_sigla):
     except psycopg.OperationalError as e:
         flash(f"Errore nell'eliminazione dell'assistito: {e}", "error")
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
     
     return redirect(url_for('lista_assistiti'))
 

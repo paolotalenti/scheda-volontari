@@ -4,39 +4,79 @@
     <meta charset="UTF-8">
     <title>Inserisci Visita</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        function toggleVolontarioFields() {
+            const emailInput = document.getElementById('volontario_email');
+            const volontarioFields = document.getElementById('volontario_fields');
+            const volontari = {{ volontari|tojson }};
+            const email = emailInput.value.trim();
+            const isExisting = volontari.some(v => v[0].toLowerCase() === email.toLowerCase());
+            volontarioFields.style.display = isExisting ? 'none' : 'block';
+            const inputs = volontarioFields.querySelectorAll('input');
+            inputs.forEach(input => input.required = !isExisting);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const emailInput = document.getElementById('volontario_email');
+            emailInput.addEventListener('input', toggleVolontarioFields);
+            toggleVolontarioFields();
+        });
+    </script>
 </head>
 <body>
-    <h1>Inserisci Visita</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <form method="post" action="{{ url_for('inserisci_visita') }}">
-        <label for="volontario_email">Volontario:</label>
-        <select name="volontario_email" id="volontario_email" required>
-            {% for volontario in volontari %}
-                <option value="{{ volontario[0] }}">{{ volontario[2] }} {{ volontario[1] }}</option>
-            {% endfor %}
-        </select>
-        <label for="assistito_nome">Assistito:</label>
-        <select name="assistito_nome" id="assistito_nome" required>
-            {% for assistito in assistiti %}
-                <option value="{{ assistito[0] }}">{{ assistito[0] }} ({{ assistito[1] }})</option>
-            {% endfor %}
-        </select>
-        <label for="accoglienza">Accoglienza:</label>
-        <input type="text" name="accoglienza" id="accoglienza" required>
-        <label for="data_visita">Data Visita:</label>
-        <input type="date" name="data_visita" id="data_visita" required>
-        <label for="necessita">Necessità:</label>
-        <input type="text" name="necessita" id="necessita">
-        <label for="cosa_migliorare">Cosa Migliorare:</label>
-        <input type="text" name="cosa_migliorare" id="cosa_migliorare">
-        <button type="submit">Inserisci</button>
-    </form>
-    <a href="{{ url_for('admin_login') }}">Torna al Login</a>
+    <div class="container">
+        <h1>Inserisci Visita</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <p class="{{ category }}">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="post" action="{{ url_for('inserisci_visita') }}">
+            <label for="volontario_email">Email Volontario:</label>
+            <input type="email" name="volontario_email" id="volontario_email" list="volontari_list" required>
+            <datalist id="volontari_list">
+                {% for volontario in volontari %}
+                    <option value="{{ volontario[0] }}">{{ volontario[2] }} {{ volontario[1] }}</option>
+                {% endfor %}
+            </datalist>
+            <div id="volontario_fields" style="display: none;">
+                <label for="volontario_cognome">Cognome Volontario: <span class="required">*</span></label>
+                <input type="text" name="volontario_cognome" id="volontario_cognome">
+                <label for="volontario_nome">Nome Volontario: <span class="required">*</span></label>
+                <input type="text" name="volontario_nome" id="volontario_nome">
+                <label for="telefono">Telefono:</label>
+                <input type="text" name="telefono" id="telefono">
+                <label for="competenze">Competenze:</label>
+                <input type="text" name="competenze" id="competenze">
+                <label for="disponibilita">Disponibilità:</label>
+                <input type="text" name="disponibilita" id="disponibilita">
+                <p class="required-note">* Obbligatorio per nuovi volontari</p>
+            </div>
+            <label for="assistito_nome">Assistito:</label>
+            <select name="assistito_nome" id="assistito_nome" required>
+                <option value="">Seleziona un assistito</option>
+                {% for assistito in assistiti %}
+                    <option value="{{ assistito[0] }}">{{ assistito[0] }} ({{ assistito[1] }})</option>
+                {% endfor %}
+            </select>
+            <label for="accoglienza">Accoglienza:</label>
+            <select name="accoglienza" id="accoglienza" required>
+                <option value="">Seleziona accoglienza</option>
+                <option value="Buona">Buona</option>
+                <option value="Media">Media</option>
+                <option value="Scarsa">Scarsa</option>
+            </select>
+            <label for="data_visita">Data Visita:</label>
+            <input type="date" name="data_visita" id="data_visita" required>
+            <label for="necessita">Necessità:</label>
+            <input type="text" name="necessita" id="necessita">
+            <label for="cosa_migliorare">Cosa Migliorare:</label>
+            <input type="text" name="cosa_migliorare" id="cosa_migliorare">
+            <button type="submit">Inserisci</button>
+        </form>
+        <a href="{{ url_for('admin_login') }}">Torna al Login</a>
+    </div>
 </body>
 </html>
