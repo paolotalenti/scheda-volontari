@@ -1,97 +1,130 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Manuale d'uso - Scheda Volontari</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <h2>Introduzione</h2>
-    <p>L'applicazione <strong>Scheda Volontari</strong> è progettata per gestire le visite dei volontari agli assistiti, permettendo la registrazione delle visite, la gestione dei volontari e degli assistiti, e la creazione di report dettagliati. Questo manuale descrive come utilizzare le funzionalità principali per amministratori e volontari.</p>
-    
-    <h3>1. Accesso per Amministratori</h3>
-    <p>Gli amministratori possono accedere alle funzionalità di gestione tramite la pagina di login:</p>
-    <ul>
-        <li><strong>Accedi</strong>: Vai su <a href="{{ url_for('admin_login') }}">Login Amministratore</a> e inserisci la password (contatta l’amministratore per ottenerla).</li>
-        <li>La pagina di login è protetta per garantire che solo gli amministratori autorizzati possano accedere.</li>
-    </ul>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Manuale Utente</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Manuale Utente - Scheda Volontari</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <p class="{{ category }}">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <h2>Introduzione</h2>
+        <p>L'applicazione <strong>Scheda Volontari</strong> consente di gestire le visite dei volontari agli assistiti, registrare nuovi volontari e assistiti, generare report dettagliati, e gestire i backup dei dati. Questo manuale fornisce istruzioni dettagliate per amministratori e volontari.</p>
 
-    <h3>2. Funzionalità per Amministratori</h3>
-    <p>Dopo il login, gli amministratori hanno accesso alle seguenti sezioni:</p>
-    <ul>
-        <li><strong>Report</strong> (<a href="{{ url_for('report') }}">/report</a>):
-            <ul>
-                <li>Visualizza tutte le visite registrate con filtri per volontario, data di inizio e fine.</li>
-                <li>Scarica i report in formato PDF o CSV usando i pulsanti dedicati (i file rispettano i filtri applicati).</li>
-                <li>Usa "Pulisci Visite Filtrate" per eliminare le visite che soddisfano i filtri attivi (volontario, data inizio, data fine).</li>
-                <li>Usa "Pulisci Tutto" per eliminare visite, volontari e assistiti (richiede la password amministrativa per sicurezza).</li>
-            </ul>
-        </li>
-        <li><strong>Gestisci Volontari</strong> (<a href="{{ url_for('lista_volontari') }}">/volontari</a>):
-            <ul>
-                <li>Aggiungi un nuovo volontario inserendo email, cognome, nome, telefono, competenze e disponibilità.</li>
-                <li>Modifica o elimina volontari esistenti (non eliminabili se hanno visite associate).</li>
-            </ul>
-        </li>
-        <li><strong>Gestisci Assistiti</strong> (<a href="{{ url_for('lista_assistiti') }}">/assistiti</a>):
-            <ul>
-                <li>Aggiungi un nuovo assistito inserendo nome sigla e città.</li>
-                <li>Modifica o elimina assistiti esistenti (non eliminabili se hanno visite associate).</li>
-            </ul>
-        </li>
-        <li><strong>Backup e Ripristino</strong> (<a href="{{ url_for('backup') }}">/backup</a>, <a href="{{ url_for('restore') }}">/restore</a>):
-            <ul>
-                <li>Crea un backup manuale dei dati (visite, volontari, assistiti) usando il pulsante "Backup Dati". Il file CSV viene salvato nella directory <code>backups/</code> sul server.</li>
-                <li>I backup automatici vengono eseguiti ogni giorno alle 02:00 e salvati nella directory <code>backups/</code>.</li>
-                <li>Per ripristinare i dati, vai alla pagina <a href="{{ url_for('restore') }}">Ripristino</a>, seleziona un file di backup dal menu a tendina, inserisci la password amministrativa, e clicca su "Ripristina".</li>
-            </ul>
-        </li>
-        <li><strong>Manuale</strong>: Questa pagina, che descrive tutte le funzionalità.</li>
-        <li><strong>Logout</strong> (<a href="{{ url_for('logout') }}">/logout</a>): Esci dalla sessione amministrativa.</li>
-    </ul>
+        <h3>1. Accesso per Amministratori</h3>
+        <p>Gli amministratori accedono alle funzionalità di gestione tramite:</p>
+        <ul>
+            <li><strong>Pagina di login</strong>: Vai su <a href="{{ url_for('admin_login') }}">Login Amministratore</a>.</li>
+            <li>Inserisci la password amministrativa (contatta l’amministratore per ottenerla).</li>
+            <li>Clicca su "Login" per accedere alla pagina dei report.</li>
+            <li><strong>Nota</strong>: La password è necessaria per tutte le operazioni amministrative (es. pulizia dati, ripristino backup).</li>
+        </ul>
 
-    <h3>3. Funzionalità per Volontari</h3>
-    <p>I volontari non necessitano di login e possono:</p>
-    <ul>
-        <li><strong>Inserisci Visita</strong> (<a href="{{ url_for('inserisci_visita') }}">/inserisci_visita</a>):
-            <ul>
-                <li>Registrati come nuovo volontario inserendo email, cognome, nome, telefono (opzionale), competenze (opzionale) e disponibilità (opzionale).</li>
-                <li>Inserisci una visita selezionando un assistito, il livello di accoglienza (Buona, Media, Scarsa), la data della visita, e aggiungendo necessità o suggerimenti di miglioramento (opzionali).</li>
-            </ul>
-        </li>
-    </ul>
+        <h3>2. Funzionalità per Volontari</h3>
+        <p>I volontari non necessitano di login e possono registrare visite:</p>
+        <ul>
+            <li><strong>Inserisci Visita</strong> (<a href="{{ url_for('inserisci_visita') }}">/inserisci_visita</a>):
+                <ol>
+                    <li>Vai alla pagina <a href="{{ url_for('inserisci_visita') }}">Inserisci Visita</a>.</li>
+                    <li>Inserisci l'<strong>email del volontario</strong>. Puoi scegliere un volontario esistente (autocompletamento disponibile tramite il menu a tendina) o inserire una nuova email.</li>
+                    <li>Se l'email è nuova, compila i campi:
+                        <ul>
+                            <li><strong>Cognome Volontario</strong><span class="required">*</span>: Obbligatorio.</li>
+                            <li><strong>Nome Volontario</strong><span class="required">*</span>: Obbligatorio.</li>
+                            <li><strong>Telefono</strong>: Opzionale.</li>
+                            <li><strong>Competenze</strong>: Opzionale (es. "assistenza medica", "supporto psicologico").</li>
+                            <li><strong>Disponibilità</strong>: Opzionale (es. "lunedì e mercoledì, 9:00-12:00").</li>
+                        </ul>
+                    </li>
+                    <li>Seleziona un <strong>assistito</strong> dal menu a tendina.</li>
+                    <li>Seleziona il livello di <strong>accoglienza</strong> tra "Buona", "Media" o "Scarsa".</li>
+                    <li>Inserisci la <strong>data della visita</strong> (obbligatoria).</li>
+                    <li>Inserisci <strong>necessità</strong> (opzionale, es. "medicine, cibo") e <strong>suggerimenti di miglioramento</strong> (opzionale).</li>
+                    <li>Clicca su "Inserisci" per salvare la visita.</li>
+                    <li><strong>Nota</strong>: I campi con <span class="required">*</span> sono obbligatori per nuovi volontari. Riceverai un messaggio di conferma o un errore se mancano dati obbligatori.</li>
+                </ol>
+            </li>
+        </ul>
 
-    <h3>4. Backup e Ripristino</h3>
-    <p>Per evitare perdite di dati:</p>
-    <ul>
-        <li>Usa il pulsante "Backup Dati" nella pagina <a href="{{ url_for('backup') }}">Backup</a> per creare un file CSV contenente tutte le visite, i volontari e gli assistiti, salvato nella directory <code>backups/</code> sul server.</li>
-        <li>I backup automatici vengono eseguiti ogni giorno alle 02:00 e salvati nella directory <code>backups/</code>.</li>
-        <li>Per ripristinare i dati, vai alla pagina <a href="{{ url_for('restore') }}">Ripristino</a>, seleziona un file CSV dal menu a tendina, inserisci la password amministrativa, e clicca su "Ripristina".</li>
-        <li>Contatta l’amministratore per accedere ai file di backup, se necessario.</li>
-    </ul>
+        <h3>3. Funzionalità per Amministratori</h3>
+        <p>Dopo il login, gli amministratori hanno accesso alle seguenti sezioni:</p>
+        <ul>
+            <li><strong>Report Visite</strong> (<a href="{{ url_for('report') }}">/report</a>):
+                <ol>
+                    <li>Vai alla pagina <a href="{{ url_for('report') }}">Report Visite</a>.</li>
+                    <li>Usa i filtri per selezionare:
+                        <ul>
+                            <li><strong>Volontario</strong>: Scegli un volontario o lascia vuoto per tutti.</li>
+                            <li><strong>Data Inizio</strong>: Filtra le visite a partire da una data.</li>
+                            <li><strong>Data Fine</strong>: Filtra le visite fino a una data.</li>
+                        </ul>
+                    </li>
+                    <li>Clicca su "Filtra" per visualizzare le visite corrispondenti.</li>
+                    <li>Scarica i dati filtrati in formato:
+                        <ul>
+                            <li><strong>PDF</strong>: Clicca su "Scarica PDF".</li>
+                            <li><strong>CSV</strong>: Clicca su "Scarica CSV".</li>
+                        </ul>
+                    </li>
+                    <li>Per eliminare le visite filtrate, inserisci la password amministrativa e clicca su "Pulisci Visite Filtrate".</li>
+                    <li><strong>Nota</strong>: I filtri si applicano anche ai file scaricati. Se non ci sono dati, verifica che i filtri siano corretti.</li>
+                </ol>
+            </li>
+            <li><strong>Gestione Volontari</strong> (<a href="{{ url_for('lista_volontari') }}">/volontari</a>):
+                <ol>
+                    <li>Vai alla pagina <a href="{{ url_for('lista_volontari') }}">Gestione Volontari</a>.</li>
+                    <li><strong>Aggiungi volontario</strong>: Inserisci email, cognome, nome (obbligatori), telefono, competenze, disponibilità (opzionali).</li>
+                    <li><strong>Modifica volontario</strong>: Clicca su "Modifica" accanto a un volontario e aggiorna i dati.</li>
+                    <li><strong>Elimina volontario</strong>: Clicca su "Elimina" (non possibile se il volontario ha visite associate).</li>
+                    <li><strong>Nota</strong>: L'email deve essere unica. Riceverai un errore se è già registrata.</li>
+                </ol>
+            </li>
+            <li><strong>Gestione Assistiti</strong> (<a href="{{ url_for('lista_assistiti') }}">/assistiti</a>):
+                <ol>
+                    <li>Vai alla pagina <a href="{{ url_for('lista_assistiti') }}">Gestione Assistiti</a>.</li>
+                    <li><strong>Aggiungi assistito</strong>: Inserisci nome sigla e città (obbligatori).</li>
+                    <li><strong>Modifica assistito</strong>: Clicca su "Modifica" e aggiorna la città.</li>
+                    <li><strong>Elimina assistito</strong>: Clicca su "Elimina" (non possibile se l'assistito ha visite associate).</li>
+                    <li><strong>Nota</strong>: Il nome sigla deve essere unico.</li>
+                </ol>
+            </li>
+            <li><strong>Backup e Ripristino</strong> (<a href="{{ url_for('backup') }}">/backup</a>, <a href="{{ url_for('restore') }}">/restore</a>):
+                <ol>
+                    <li><strong>Backup manuale</strong>: Vai a <a href="{{ url_for('backup') }}">Esegui Backup</a> e clicca sul pulsante per creare un file CSV con tutte le visite, volontari e assistiti, salvato in <code>backups/</code>.</li>
+                    <li><strong>Backup automatico</strong>: Eseguito ogni giorno alle 02:00, i file sono salvati in <code>backups/</code>. I backup più vecchi di 7 giorni vengono eliminati automaticamente.</li>
+                    <li><strong>Ripristino</strong>: Vai a <a href="{{ url_for('restore') }}">Ripristina Backup</a>, seleziona un file CSV, inserisci la password amministrativa e clicca su "Ripristina".</li>
+                    <li><strong>Nota</strong>: I backup automatici potrebbero non funzionare se il server (es. Render) è in standby. Contatta l’amministratore per configurare un server attivo o eseguire backup manuali.</li>
+                </ol>
+            </li>
+            <li><strong>Manuale</strong>: Questa pagina, accessibile da <a href="{{ url_for('manuale') }}">Manuale</a>.</li>
+            <li><strong>Logout</strong>: Clicca su <a href="{{ url_for('logout') }}">Logout</a> per uscire dalla sessione amministrativa.</li>
+        </ul>
 
-    <h3>5. Risoluzione dei problemi</h3>
-    <ul>
-        <li><strong>Errore durante l’aggiunta di un volontario o assistito</strong>: Controlla che l’email (per i volontari) o il nome sigla (per gli assistiti) non sia già registrata.</li>
-        <li><strong>Errore di accesso</strong>: Assicurati di usare la password corretta per il login amministrativo.</li>
-        <li><strong>Problemi con i report</strong>: Verifica che i filtri siano impostati correttamente e che ci siano dati nel database.</li>
-        <li><strong>Problemi con il ripristino</strong>: Assicurati che il file di backup selezionato sia valido e che la password amministrativa sia corretta.</li>
-        <li><strong>Eliminazione accidentale</strong>: Usa la funzione di ripristino per recuperare i dati da un backup recente. "Pulisci Tutto" richiede la password amministrativa per evitare errori.</li>
-    </ul>
+        <h3>4. Risoluzione dei problemi</h3>
+        <ul>
+            <li><strong>Errore durante l’aggiunta di un volontario/assistito</strong>: Controlla che l’email (volontari) o il nome sigla (assistiti) non sia già registrata.</li>
+            <li><strong>Errore di accesso</strong>: Assicurati di usare la password amministrativa corretta.</li>
+            <li><strong>Problemi con i report</strong>: Verifica che i filtri siano impostati correttamente e che ci siano dati nel database.</li>
+            <li><strong>Problemi con il ripristino</strong>: Assicurati che il file di backup sia valido e che la password sia corretta.</li>
+            <li><strong>Eliminazione accidentale</strong>: Usa la funzione di ripristino per recuperare i dati da un backup recente.</li>
+            <li><strong>Backup automatici non eseguiti</strong>: Se il server va in standby (es. Render), i backup automatici potrebbero non funzionare. Esegui backup manuali o contatta l’amministratore.</li>
+        </ul>
 
-    <h3>6. Contatti</h3>
-    <p>Per assistenza, contatta l’Amministratore Sistema:</p>
-    <ul>
-        <li><strong>Telefono</strong>: +39 348 5707840</li>
-        <li><strong>Email</strong>: paolo.talenti@gmail.com</li>
-    </ul>
+        <h3>5. Contatti</h3>
+        <p>Per assistenza, contatta l’Amministratore Sistema:</p>
+        <ul>
+            <li><strong>Telefono</strong>: +39 348 5707840</li>
+            <li><strong>Email</strong>: paolo.talenti@gmail.com</li>
+        </ul>
 
-    <a href="{{ url_for('report') }}" class="btn btn-secondary mt-3">Torna</a>
-</div>
-{% endblock %}
+        <a href="{{ url_for('report') }}">Torna al Report</a>
+    </div>
+</body>
+</html>

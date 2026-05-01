@@ -137,9 +137,19 @@ def report():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    volontario_email = request.form.get('volontario_email', '')
-    data_inizio = request.form.get('data_inizio', '')
-    data_fine = request.form.get('data_fine', '')
+    if request.method == 'GET':
+        # Default: dal 1° del mese precedente (nessun filtro su volontario o data fine)
+        oggi = datetime.now()
+        if oggi.month == 1:
+            data_inizio = f"{oggi.year - 1}-12-01"
+        else:
+            data_inizio = f"{oggi.year}-{oggi.month - 1:02d}-01"
+        data_fine = ''
+        volontario_email = ''
+    else:
+        volontario_email = request.form.get('volontario_email', '')
+        data_inizio = request.form.get('data_inizio', '')
+        data_fine = request.form.get('data_fine', '')
 
     logging.info(f"volontario_email: {volontario_email}, data_inizio: {data_inizio}, data_fine: {data_fine}")
 
