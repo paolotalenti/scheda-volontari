@@ -37,7 +37,7 @@
                 <th>Accoglienza</th>
                 <th>Data</th>
                 <th>Necessità</th>
-                <th>Miglioramenti</th>
+                <th>Considerazioni</th>
             </tr>
             {% for visita in visite %}
                 <tr>
@@ -66,6 +66,7 @@
         <a href="{{ url_for('lista_volontari') }}">Gestione Volontari</a>
         <a href="{{ url_for('lista_assistiti') }}">Gestione Assistiti</a>
         <a href="{{ url_for('manuale') }}">Manuale</a>
+        <a href="{{ url_for('cambio_password') }}">Cambia Password</a>
         <a href="{{ url_for('logout') }}">Logout</a>
     </div>
 </body>

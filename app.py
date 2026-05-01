@@ -33,6 +33,53 @@ def get_db_connection():
         logging.error(f"Errore di connessione al database: {e}")
         raise
 
+# Inizializza tabella config e migra la password dall'env var
+def init_config():
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        cur.execute("""
+            INSERT INTO config (key, value)
+            VALUES ('admin_password', %s)
+            ON CONFLICT (key) DO NOTHING
+        """, (ADMIN_PASSWORD,))
+        conn.commit()
+        logging.info("init_config: tabella config verificata/creata.")
+    except Exception as e:
+        logging.error(f"Errore in init_config: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+def get_admin_password():
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM config WHERE key = 'admin_password'")
+        row = cur.fetchone()
+        return row[0] if row else ADMIN_PASSWORD
+    except Exception:
+        return ADMIN_PASSWORD
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
 # Backup automatico
 def backup_automatico():
     logging.info(f"Inizio backup automatico alle: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -64,7 +111,7 @@ def backup_automatico():
             with open(filename, 'w', newline='', encoding='utf-8') as output_file:
                 writer = csv.writer(output_file, lineterminator='\n')
                 writer.writerow(['--- Visite ---'])
-                writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
+                writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
                 for visita in visite:
                     writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
 
@@ -101,6 +148,7 @@ def backup_automatico():
 scheduler = BackgroundScheduler(timezone="Europe/Rome")
 scheduler.add_job(backup_automatico, 'cron', hour=2, minute=0)
 scheduler.start()
+init_config()
 
 @app.route('/')
 def home():
@@ -118,7 +166,7 @@ def admin_login():
             if not password:
                 flash('Inserisci una password.', 'error')
                 return render_template('admin_login.html')
-            if password == ADMIN_PASSWORD:
+            if password == get_admin_password():
                 session['logged_in'] = True
                 return redirect(url_for('report'))
             else:
@@ -324,7 +372,7 @@ def download_pdf():
             y -= 20
             pdf.drawString(50, y, f"Necessità: {visita[4] or 'Nessuna'}")
             y -= 20
-            pdf.drawString(50, y, f"Miglioramenti: {visita[5] or 'Nessuno'}")
+            pdf.drawString(50, y, f"Considerazioni: {visita[5] or 'Nessuna'}")
             y -= 40
             if y < 50:
                 pdf.showPage()
@@ -389,7 +437,7 @@ def download_csv():
 
         output = StringIO()
         writer = csv.writer(output, lineterminator='\n')
-        writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
+        writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
         
         for visita in visite:
             writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or 'Nessuna', visita[5] or 'Nessuno'])
@@ -436,7 +484,7 @@ def backup():
         with open(filename, 'w', newline='', encoding='utf-8') as output_file:
             writer = csv.writer(output_file, lineterminator='\n')
             writer.writerow(['--- Visite ---'])
-            writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Cosa Migliorare'])
+            writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
             for visita in visite:
                 writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
 
@@ -477,7 +525,7 @@ def restore():
 
     if request.method == 'POST':
         password = request.form.get('password')
-        if password != ADMIN_PASSWORD:
+        if password != get_admin_password():
             flash("Password errata per il ripristino.", "error")
             return render_template('restore.html', backup_files=backup_files)
 
@@ -558,7 +606,7 @@ def clean():
         return redirect(url_for('admin_login'))
 
     password = request.form.get('password')
-    if password != ADMIN_PASSWORD:
+    if password != get_admin_password():
         flash("Password amministratore errata.", "error")
         return redirect(url_for('report'))
 
@@ -609,7 +657,7 @@ def clean_volontari():
         return redirect(url_for('admin_login'))
 
     password = request.form.get('password')
-    if password != ADMIN_PASSWORD:
+    if password != get_admin_password():
         flash("Password errata per la pulizia completa.", "error")
         return redirect(url_for('report'))
 
@@ -785,6 +833,49 @@ def elimina_volontario(email):
             conn.close()
     
     return redirect(url_for('lista_volontari'))
+
+@app.route('/volontari/download_csv')
+def download_csv_volontari():
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione
+            FROM volontari
+            ORDER BY cognome, nome
+        """)
+        volontari = cur.fetchall()
+
+        output = StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+        writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
+        for v in volontari:
+            writer.writerow([
+                v[0], v[1], v[2],
+                v[3] or '',
+                v[4] or '',
+                v[5] or '',
+                v[6].strftime('%Y-%m-%d') if v[6] else ''
+            ])
+
+        csv_output = output.getvalue().encode('utf-8-sig')  # utf-8-sig per compatibilità Excel
+        output.close()
+        return Response(
+            csv_output,
+            mimetype='text/csv',
+            headers={"Content-Disposition": "attachment;filename=volontari.csv"}
+        )
+    except psycopg.OperationalError as e:
+        flash(f"Errore nel database: {e}", "error")
+        return redirect(url_for('lista_volontari'))
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route('/inserisci_visita', methods=['GET', 'POST'])
 def inserisci_visita():
@@ -994,6 +1085,78 @@ def elimina_assistito(nome_sigla):
             conn.close()
     
     return redirect(url_for('lista_assistiti'))
+
+@app.route('/assistiti/download_csv')
+def download_csv_assistiti():
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT nome_sigla, citta FROM assistiti ORDER BY citta, nome_sigla")
+        assistiti = cur.fetchall()
+
+        output = StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+        writer.writerow(['Nome Sigla', 'Città'])
+        for a in assistiti:
+            writer.writerow([a[0], a[1]])
+
+        csv_output = output.getvalue().encode('utf-8-sig')
+        output.close()
+        return Response(
+            csv_output,
+            mimetype='text/csv',
+            headers={"Content-Disposition": "attachment;filename=assistiti.csv"}
+        )
+    except psycopg.OperationalError as e:
+        flash(f"Errore nel database: {e}", "error")
+        return redirect(url_for('lista_assistiti'))
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+@app.route('/cambio_password', methods=['GET', 'POST'])
+def cambio_password():
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        password_attuale = request.form.get('password_attuale', '')
+        nuova_password = request.form.get('nuova_password', '')
+        conferma_password = request.form.get('conferma_password', '')
+
+        if password_attuale != get_admin_password():
+            flash("La password attuale non è corretta.", "error")
+            return render_template('cambio_password.html')
+
+        if not nuova_password:
+            flash("La nuova password non può essere vuota.", "error")
+            return render_template('cambio_password.html')
+
+        if nuova_password != conferma_password:
+            flash("La nuova password e la conferma non coincidono.", "error")
+            return render_template('cambio_password.html')
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("UPDATE config SET value = %s WHERE key = 'admin_password'", (nuova_password,))
+            conn.commit()
+            flash("Password cambiata con successo!", "success")
+            return redirect(url_for('report'))
+        except Exception as e:
+            flash(f"Errore nel cambio password: {e}", "error")
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    return render_template('cambio_password.html')
 
 @app.route('/logout')
 def logout():

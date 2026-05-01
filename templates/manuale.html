@@ -1,130 +1,117 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <title>Manuale Utente</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h1>Manuale Utente - Scheda Volontari</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <p class="{{ category }}">{{ message }}</p>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <h2>Introduzione</h2>
-        <p>L'applicazione <strong>Scheda Volontari</strong> consente di gestire le visite dei volontari agli assistiti, registrare nuovi volontari e assistiti, generare report dettagliati, e gestire i backup dei dati. Questo manuale fornisce istruzioni dettagliate per amministratori e volontari.</p>
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Manuale Utente — Scheda Volontari</h1>
 
-        <h3>1. Accesso per Amministratori</h3>
-        <p>Gli amministratori accedono alle funzionalità di gestione tramite:</p>
-        <ul>
-            <li><strong>Pagina di login</strong>: Vai su <a href="{{ url_for('admin_login') }}">Login Amministratore</a>.</li>
-            <li>Inserisci la password amministrativa (contatta l’amministratore per ottenerla).</li>
-            <li>Clicca su "Login" per accedere alla pagina dei report.</li>
-            <li><strong>Nota</strong>: La password è necessaria per tutte le operazioni amministrative (es. pulizia dati, ripristino backup).</li>
-        </ul>
+    <h2 class="mt-4">Introduzione</h2>
+    <p>
+        <strong>Scheda Volontari</strong> è un'applicazione web per gestire le visite dei volontari agli assistiti.
+        Permette di registrare le visite, gestire l'anagrafica di volontari e assistiti, generare report e scaricare i dati.
+        I volontari accedono direttamente alla pagina di inserimento senza bisogno di login.
+        Le funzioni amministrative (report, gestione anagrafica, backup) richiedono autenticazione.
+    </p>
 
-        <h3>2. Funzionalità per Volontari</h3>
-        <p>I volontari non necessitano di login e possono registrare visite:</p>
-        <ul>
-            <li><strong>Inserisci Visita</strong> (<a href="{{ url_for('inserisci_visita') }}">/inserisci_visita</a>):
-                <ol>
-                    <li>Vai alla pagina <a href="{{ url_for('inserisci_visita') }}">Inserisci Visita</a>.</li>
-                    <li>Inserisci l'<strong>email del volontario</strong>. Puoi scegliere un volontario esistente (autocompletamento disponibile tramite il menu a tendina) o inserire una nuova email.</li>
-                    <li>Se l'email è nuova, compila i campi:
-                        <ul>
-                            <li><strong>Cognome Volontario</strong><span class="required">*</span>: Obbligatorio.</li>
-                            <li><strong>Nome Volontario</strong><span class="required">*</span>: Obbligatorio.</li>
-                            <li><strong>Telefono</strong>: Opzionale.</li>
-                            <li><strong>Competenze</strong>: Opzionale (es. "assistenza medica", "supporto psicologico").</li>
-                            <li><strong>Disponibilità</strong>: Opzionale (es. "lunedì e mercoledì, 9:00-12:00").</li>
-                        </ul>
-                    </li>
-                    <li>Seleziona un <strong>assistito</strong> dal menu a tendina.</li>
-                    <li>Seleziona il livello di <strong>accoglienza</strong> tra "Buona", "Media" o "Scarsa".</li>
-                    <li>Inserisci la <strong>data della visita</strong> (obbligatoria).</li>
-                    <li>Inserisci <strong>necessità</strong> (opzionale, es. "medicine, cibo") e <strong>suggerimenti di miglioramento</strong> (opzionale).</li>
-                    <li>Clicca su "Inserisci" per salvare la visita.</li>
-                    <li><strong>Nota</strong>: I campi con <span class="required">*</span> sono obbligatori per nuovi volontari. Riceverai un messaggio di conferma o un errore se mancano dati obbligatori.</li>
-                </ol>
-            </li>
-        </ul>
+    <hr>
 
-        <h3>3. Funzionalità per Amministratori</h3>
-        <p>Dopo il login, gli amministratori hanno accesso alle seguenti sezioni:</p>
-        <ul>
-            <li><strong>Report Visite</strong> (<a href="{{ url_for('report') }}">/report</a>):
-                <ol>
-                    <li>Vai alla pagina <a href="{{ url_for('report') }}">Report Visite</a>.</li>
-                    <li>Usa i filtri per selezionare:
-                        <ul>
-                            <li><strong>Volontario</strong>: Scegli un volontario o lascia vuoto per tutti.</li>
-                            <li><strong>Data Inizio</strong>: Filtra le visite a partire da una data.</li>
-                            <li><strong>Data Fine</strong>: Filtra le visite fino a una data.</li>
-                        </ul>
-                    </li>
-                    <li>Clicca su "Filtra" per visualizzare le visite corrispondenti.</li>
-                    <li>Scarica i dati filtrati in formato:
-                        <ul>
-                            <li><strong>PDF</strong>: Clicca su "Scarica PDF".</li>
-                            <li><strong>CSV</strong>: Clicca su "Scarica CSV".</li>
-                        </ul>
-                    </li>
-                    <li>Per eliminare le visite filtrate, inserisci la password amministrativa e clicca su "Pulisci Visite Filtrate".</li>
-                    <li><strong>Nota</strong>: I filtri si applicano anche ai file scaricati. Se non ci sono dati, verifica che i filtri siano corretti.</li>
-                </ol>
-            </li>
-            <li><strong>Gestione Volontari</strong> (<a href="{{ url_for('lista_volontari') }}">/volontari</a>):
-                <ol>
-                    <li>Vai alla pagina <a href="{{ url_for('lista_volontari') }}">Gestione Volontari</a>.</li>
-                    <li><strong>Aggiungi volontario</strong>: Inserisci email, cognome, nome (obbligatori), telefono, competenze, disponibilità (opzionali).</li>
-                    <li><strong>Modifica volontario</strong>: Clicca su "Modifica" accanto a un volontario e aggiorna i dati.</li>
-                    <li><strong>Elimina volontario</strong>: Clicca su "Elimina" (non possibile se il volontario ha visite associate).</li>
-                    <li><strong>Nota</strong>: L'email deve essere unica. Riceverai un errore se è già registrata.</li>
-                </ol>
-            </li>
-            <li><strong>Gestione Assistiti</strong> (<a href="{{ url_for('lista_assistiti') }}">/assistiti</a>):
-                <ol>
-                    <li>Vai alla pagina <a href="{{ url_for('lista_assistiti') }}">Gestione Assistiti</a>.</li>
-                    <li><strong>Aggiungi assistito</strong>: Inserisci nome sigla e città (obbligatori).</li>
-                    <li><strong>Modifica assistito</strong>: Clicca su "Modifica" e aggiorna la città.</li>
-                    <li><strong>Elimina assistito</strong>: Clicca su "Elimina" (non possibile se l'assistito ha visite associate).</li>
-                    <li><strong>Nota</strong>: Il nome sigla deve essere unico.</li>
-                </ol>
-            </li>
-            <li><strong>Backup e Ripristino</strong> (<a href="{{ url_for('backup') }}">/backup</a>, <a href="{{ url_for('restore') }}">/restore</a>):
-                <ol>
-                    <li><strong>Backup manuale</strong>: Vai a <a href="{{ url_for('backup') }}">Esegui Backup</a> e clicca sul pulsante per creare un file CSV con tutte le visite, volontari e assistiti, salvato in <code>backups/</code>.</li>
-                    <li><strong>Backup automatico</strong>: Eseguito ogni giorno alle 02:00, i file sono salvati in <code>backups/</code>. I backup più vecchi di 7 giorni vengono eliminati automaticamente.</li>
-                    <li><strong>Ripristino</strong>: Vai a <a href="{{ url_for('restore') }}">Ripristina Backup</a>, seleziona un file CSV, inserisci la password amministrativa e clicca su "Ripristina".</li>
-                    <li><strong>Nota</strong>: I backup automatici potrebbero non funzionare se il server (es. Render) è in standby. Contatta l’amministratore per configurare un server attivo o eseguire backup manuali.</li>
-                </ol>
-            </li>
-            <li><strong>Manuale</strong>: Questa pagina, accessibile da <a href="{{ url_for('manuale') }}">Manuale</a>.</li>
-            <li><strong>Logout</strong>: Clicca su <a href="{{ url_for('logout') }}">Logout</a> per uscire dalla sessione amministrativa.</li>
-        </ul>
+    <h2 class="mt-4">1. Accesso amministratore</h2>
+    <p>
+        Vai su <a href="{{ url_for('admin_login') }}">Login Amministratore</a>, inserisci la password e clicca su "Login".
+        Dopo il login vieni reindirizzato alla pagina Report Visite.
+    </p>
+    <p>Per cambiare la password amministrativa vedi la sezione <strong>6. Cambia Password</strong>.</p>
 
-        <h3>4. Risoluzione dei problemi</h3>
-        <ul>
-            <li><strong>Errore durante l’aggiunta di un volontario/assistito</strong>: Controlla che l’email (volontari) o il nome sigla (assistiti) non sia già registrata.</li>
-            <li><strong>Errore di accesso</strong>: Assicurati di usare la password amministrativa corretta.</li>
-            <li><strong>Problemi con i report</strong>: Verifica che i filtri siano impostati correttamente e che ci siano dati nel database.</li>
-            <li><strong>Problemi con il ripristino</strong>: Assicurati che il file di backup sia valido e che la password sia corretta.</li>
-            <li><strong>Eliminazione accidentale</strong>: Usa la funzione di ripristino per recuperare i dati da un backup recente.</li>
-            <li><strong>Backup automatici non eseguiti</strong>: Se il server va in standby (es. Render), i backup automatici potrebbero non funzionare. Esegui backup manuali o contatta l’amministratore.</li>
-        </ul>
+    <hr>
 
-        <h3>5. Contatti</h3>
-        <p>Per assistenza, contatta l’Amministratore Sistema:</p>
-        <ul>
-            <li><strong>Telefono</strong>: +39 348 5707840</li>
-            <li><strong>Email</strong>: paolo.talenti@gmail.com</li>
-        </ul>
+    <h2 class="mt-4">2. Inserimento visita (per volontari)</h2>
+    <p>I volontari non necessitano di login. Dalla pagina <a href="{{ url_for('inserisci_visita') }}">Inserisci Visita</a>:</p>
+    <ol>
+        <li>Inserisci l'<strong>email del volontario</strong>. Se l'email è già registrata i campi anagrafici vengono nascosti automaticamente. Se è nuova, compila cognome e nome (obbligatori), telefono, competenze e disponibilità (facoltativi).</li>
+        <li>Seleziona l'<strong>assistito</strong> dal menu.</li>
+        <li>Scegli il livello di <strong>accoglienza</strong>: Buona, Media o Scarsa.</li>
+        <li>Inserisci la <strong>data della visita</strong> (obbligatoria).</li>
+        <li>Aggiungi eventuali <strong>necessità</strong> e <strong>considerazioni</strong> (facoltativi).</li>
+        <li>Clicca su <strong>Inserisci</strong>.</li>
+    </ol>
 
-        <a href="{{ url_for('report') }}">Torna al Report</a>
-    </div>
-</body>
-</html>
+    <hr>
+
+    <h2 class="mt-4">3. Report Visite</h2>
+    <p>
+        Vai su <a href="{{ url_for('report') }}">Report Visite</a>.
+        All'apertura della pagina la <strong>data di inizio è impostata automaticamente al 1° del mese precedente</strong>:
+        questo limita la visualizzazione alle visite recenti evitando di caricare tutto l'archivio.
+        Puoi modificare liberamente entrambe le date o cancellarle per vedere tutte le visite.
+    </p>
+    <ol>
+        <li>Usa il filtro <strong>Volontario</strong> per restringere i risultati a una persona specifica (lascia "Tutti" per vedere tutto).</li>
+        <li>Modifica <strong>Data Inizio</strong> e/o <strong>Data Fine</strong> secondo le tue esigenze.</li>
+        <li>Clicca su <strong>Filtra</strong> per aggiornare la tabella.</li>
+        <li>Scarica i dati filtrati con <strong>Scarica PDF</strong> o <strong>Scarica CSV</strong>.</li>
+        <li>Per eliminare le visite visualizzate, inserisci la password amministrativa e clicca su <strong>Pulisci Visite Filtrate</strong>.</li>
+    </ol>
+    <p><strong>Nota:</strong> i filtri attivi si applicano anche ai file scaricati e alla funzione di pulizia.</p>
+
+    <hr>
+
+    <h2 class="mt-4">4. Gestione Volontari</h2>
+    <p>Vai su <a href="{{ url_for('lista_volontari') }}">Gestione Volontari</a>. Trovi tre pulsanti in cima alla pagina:</p>
+    <ul>
+        <li><strong>Aggiungi Volontario</strong>: inserisci email (unica), cognome, nome (obbligatori), telefono, competenze, disponibilità (facoltativi).</li>
+        <li><strong>Scarica CSV</strong>: scarica l'elenco completo dei volontari in formato CSV, ordinato per cognome. Il file si chiama <code>volontari.csv</code> e si apre direttamente con Excel.</li>
+        <li><strong>Modifica</strong> / <strong>Elimina</strong>: disponibili per ogni riga della tabella. L'eliminazione non è possibile se il volontario ha visite associate.</li>
+    </ul>
+
+    <hr>
+
+    <h2 class="mt-4">5. Gestione Assistiti</h2>
+    <p>Vai su <a href="{{ url_for('lista_assistiti') }}">Gestione Assistiti</a>. Trovi tre pulsanti in cima alla pagina:</p>
+    <ul>
+        <li><strong>Aggiungi Assistito</strong>: inserisci nome sigla (unico) e città (obbligatori).</li>
+        <li><strong>Scarica CSV</strong>: scarica l'elenco completo degli assistiti in formato CSV, ordinato per città. Il file si chiama <code>assistiti.csv</code>.</li>
+        <li><strong>Modifica</strong> / <strong>Elimina</strong>: disponibili per ogni riga. L'eliminazione non è possibile se l'assistito ha visite associate.</li>
+    </ul>
+
+    <hr>
+
+    <h2 class="mt-4">6. Cambia Password</h2>
+    <p>
+        Dal Report Visite clicca su <strong>Cambia Password</strong> (in fondo alla pagina).
+        Inserisci la password attuale, la nuova password e la conferma.
+        La nuova password viene salvata nel database ed è attiva immediatamente, senza bisogno di modificare le impostazioni del server.
+    </p>
+    <p><strong>Nota:</strong> se dimentichi la password, contatta l'amministratore di sistema che potrà reimpostarla direttamente su Render.</p>
+
+    <hr>
+
+    <h2 class="mt-4">7. Backup e Ripristino</h2>
+    <ul>
+        <li><strong>Backup automatico</strong>: eseguito ogni giorno alle 02:00. I file sono salvati nella cartella <code>backups/</code> e quelli più vecchi di 7 giorni vengono eliminati automaticamente.</li>
+        <li><strong>Backup manuale</strong>: clicca su <a href="{{ url_for('backup') }}">Esegui Backup</a> per creare subito un file CSV con tutti i dati (visite, volontari, assistiti).</li>
+        <li><strong>Ripristino</strong>: vai su <a href="{{ url_for('restore') }}">Ripristina Backup</a>, seleziona un file di backup, inserisci la password amministrativa e clicca su "Ripristina".</li>
+    </ul>
+    <p><strong>Attenzione:</strong> il ripristino sovrascrive tutti i dati presenti. Esegui sempre un backup manuale prima di ripristinare.</p>
+
+    <hr>
+
+    <h2 class="mt-4">8. Risoluzione dei problemi</h2>
+    <ul>
+        <li><strong>Email o nome sigla già esistenti</strong>: ogni email volontario e ogni nome sigla assistito deve essere unico. Cambia il valore e riprova.</li>
+        <li><strong>Password errata</strong>: usa la password corrente. Se non la ricordi, contatta l'amministratore di sistema.</li>
+        <li><strong>Caratteri accentati nel CSV</strong>: il file è codificato in UTF-8 con BOM per la compatibilità con Excel. Se i caratteri non appaiono correttamente, apri Excel, usa "Dati → Da testo/CSV" e scegli la codifica UTF-8.</li>
+        <li><strong>Eliminazione non riuscita</strong>: un volontario o assistito con visite associate non può essere eliminato. Pulisci prima le visite correlate dal Report.</li>
+        <li><strong>Backup automatici mancanti</strong>: se il server Render va in standby, il job notturno potrebbe non partire. Esegui backup manuali periodicamente.</li>
+        <li><strong>Ripristino fallito</strong>: verifica che il file selezionato sia un backup valido generato da questa applicazione.</li>
+    </ul>
+
+    <hr>
+
+    <h2 class="mt-4">9. Contatti</h2>
+    <p>Per assistenza contatta l'amministratore di sistema:</p>
+    <ul>
+        <li><strong>Telefono</strong>: +39 348 5707840</li>
+        <li><strong>Email</strong>: paolo.talenti@gmail.com</li>
+    </ul>
+
+    <a href="{{ url_for('report') }}" class="btn btn-secondary mt-3">Torna al Report</a>
+</div>
+{% endblock %}
