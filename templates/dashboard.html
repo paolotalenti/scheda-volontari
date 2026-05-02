@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .stat-card { background: white; border-radius: 10px; padding: 20px; text-align: center;
+               box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  .stat-card .numero { font-size: 2.5rem; font-weight: 700; color: #3498db; }
+  .stat-card .etichetta { color: #666; font-size: 0.9rem; margin-top: 4px; }
+  .section-card { background: white; border-radius: 10px; padding: 20px;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 24px; }
+  .section-card h5 { color: #2c3e50; border-bottom: 2px solid #3498db;
+                     padding-bottom: 8px; margin-bottom: 16px; }
+  .badge-visite { background: #3498db; color: white; border-radius: 12px;
+                  padding: 2px 10px; font-size: 0.85rem; font-weight: 600; }
+  .badge-zero { background: #e74c3c; color: white; border-radius: 12px;
+                padding: 2px 10px; font-size: 0.85rem; }
+  .periodo-btn { border-radius: 20px; padding: 5px 16px; font-size: 0.85rem;
+                 margin-right: 6px; margin-bottom: 6px; border: 2px solid #3498db;
+                 background: white; color: #3498db; cursor: pointer; transition: all 0.2s; }
+  .periodo-btn:hover, .periodo-btn.active { background: #3498db; color: white; }
+  #filtro-personalizzato { display: none; }
+  .row-attivo { background: #f0fff4; }
+  .row-inattivo { background: #fff5f5; }
+</style>
+
+<h2 class="text-center mb-4">📊 Dashboard Tempo Insieme</h2>
+
+<!-- FILTRO PERIODO -->
+<div class="section-card mb-4">
+  <h5>Periodo di analisi</h5>
+  <div class="mb-3">
+    <button class="periodo-btn {% if periodo == 'questo_mese' %}active{% endif %}"
+            onclick="setPeriodo('questo_mese')">Questo mese</button>
+    <button class="periodo-btn {% if periodo == 'mese_scorso' %}active{% endif %}"
+            onclick="setPeriodo('mese_scorso')">Mese scorso</button>
+    <button class="periodo-btn {% if periodo == 'bimestre' %}active{% endif %}"
+            onclick="setPeriodo('bimestre')">Bimestre</button>
+    <button class="periodo-btn {% if periodo == 'personalizzato' %}active{% endif %}"
+            onclick="setPeriodo('personalizzato')">Da … a …</button>
+  </div>
+
+  <form method="post" id="form-dashboard">
+    <input type="hidden" name="periodo" id="input-periodo" value="{{ periodo }}">
+    <div id="filtro-personalizzato" class="row g-2 align-items-end"
+         style="{% if periodo == 'personalizzato' %}display:flex{% endif %}">
+      <div class="col-auto">
+        <label class="form-label small">Dal</label>
+        <input type="date" name="data_inizio" class="form-control form-control-sm"
+               value="{{ data_inizio }}" style="width:160px">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small">Al</label>
+        <input type="date" name="data_fine" class="form-control form-control-sm"
+               value="{{ data_fine }}" style="width:160px">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Applica</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="d-flex align-items-center justify-content-between mt-2">
+    <div class="text-muted small">
+      📅 Periodo analizzato: <strong>{{ data_inizio }}</strong> → <strong>{{ data_fine }}</strong>
+    </div>
+    <form method="post" action="{{ url_for('dashboard_pdf') }}">
+      <input type="hidden" name="periodo" value="{{ periodo }}">
+      <input type="hidden" name="data_inizio" value="{{ data_inizio }}">
+      <input type="hidden" name="data_fine" value="{{ data_fine }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">
+        📄 Scarica PDF
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- CARD STATISTICHE PRINCIPALI -->
+<div class="row g-3 mb-2">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero">{{ stats.totale_visite }}</div>
+      <div class="etichetta">Visite nel periodo</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero">{{ stats.totale_volontari }}</div>
+      <div class="etichetta">Volontari totali</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero" style="color:#27ae60">{{ stats.volontari_attivi }}</div>
+      <div class="etichetta">Volontari attivi</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero">{{ stats.totale_assistiti }}</div>
+      <div class="etichetta">Assistiti totali</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero" style="color:#27ae60">{{ stats.assistiti_visitati }}</div>
+      <div class="etichetta">Assistiti visitati</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero" style="color:#e74c3c">{{ stats.assistiti_non_visitati }}</div>
+      <div class="etichetta">Assistiti non visitati</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero" style="color:#e74c3c">{{ stats.volontari_inattivi }}</div>
+      <div class="etichetta">Volontari senza visite</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="numero" style="color:#8e44ad">{{ stats.media_visite }}</div>
+      <div class="etichetta">Media visite/volontario</div>
+    </div>
+  </div>
+</div>
+
+<!-- VOLONTARI PIÙ ATTIVI -->
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="section-card">
+      <h5>🏆 Volontari più attivi nel periodo</h5>
+      {% if volontari_attivi %}
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr><th>#</th><th>Nome</th><th>Email</th><th class="text-center">Visite</th></tr></thead>
+          <tbody>
+          {% for v in volontari_attivi %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td><strong>{{ v.nome }} {{ v.cognome }}</strong></td>
+              <td class="text-muted small">{{ v.email }}</td>
+              <td class="text-center"><span class="badge-visite">{{ v.n_visite }}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-muted">Nessuna visita nel periodo selezionato.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- VOLONTARI SENZA VISITE -->
+  <div class="col-md-6">
+    <div class="section-card">
+      <h5>⚠️ Volontari senza visite nel periodo</h5>
+      {% if volontari_inattivi %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Nome</th><th>Email</th><th>Disponibilità</th></tr></thead>
+          <tbody>
+          {% for v in volontari_inattivi %}
+            <tr class="row-inattivo">
+              <td><strong>{{ v.nome }} {{ v.cognome }}</strong></td>
+              <td class="text-muted small">{{ v.email }}</td>
+              <td class="text-muted small">{{ v.disponibilita or '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-success">✅ Tutti i volontari hanno effettuato almeno una visita.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ASSISTITI -->
+<div class="row g-4 mt-1">
+  <div class="col-md-6">
+    <div class="section-card">
+      <h5>✅ Assistiti visitati nel periodo</h5>
+      {% if assistiti_visitati %}
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr><th>Sigla</th><th>Città</th><th class="text-center">Visite</th></tr></thead>
+          <tbody>
+          {% for a in assistiti_visitati %}
+            <tr class="row-attivo">
+              <td><strong>{{ a.nome_sigla }}</strong></td>
+              <td>{{ a.citta }}</td>
+              <td class="text-center"><span class="badge-visite">{{ a.n_visite }}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-muted">Nessun assistito visitato nel periodo.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ASSISTITI NON VISITATI -->
+  <div class="col-md-6">
+    <div class="section-card">
+      <h5>❌ Assistiti non visitati nel periodo</h5>
+      {% if assistiti_non_visitati %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Sigla</th><th>Città</th></tr></thead>
+          <tbody>
+          {% for a in assistiti_non_visitati %}
+            <tr class="row-inattivo">
+              <td><strong>{{ a.nome_sigla }}</strong></td>
+              <td>{{ a.citta }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-success">✅ Tutti gli assistiti hanno ricevuto almeno una visita.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+function setPeriodo(p) {
+  document.getElementById('input-periodo').value = p;
+  const div = document.getElementById('filtro-personalizzato');
+  div.style.display = (p === 'personalizzato') ? 'flex' : 'none';
+  if (p !== 'personalizzato') {
+    document.getElementById('form-dashboard').submit();
+  }
+  document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>
+{% endblock %}

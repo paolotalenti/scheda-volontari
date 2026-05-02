@@ -3,6 +3,11 @@ import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_CENTER
 from io import BytesIO, StringIO
 from datetime import datetime
 import time
@@ -1157,6 +1162,328 @@ def cambio_password():
                 conn.close()
 
     return render_template('cambio_password.html')
+
+@app.route('/dashboard', methods=['GET', 'POST'])
+def dashboard():
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
+    oggi = datetime.now()
+
+    # Determina periodo
+    periodo = request.form.get('periodo', 'questo_mese')
+
+    if periodo == 'questo_mese':
+        data_inizio = f"{oggi.year}-{oggi.month:02d}-01"
+        data_fine = oggi.strftime('%Y-%m-%d')
+    elif periodo == 'mese_scorso':
+        if oggi.month == 1:
+            data_inizio = f"{oggi.year - 1}-12-01"
+            data_fine = f"{oggi.year - 1}-12-31"
+        else:
+            import calendar
+            ultimo_giorno = calendar.monthrange(oggi.year, oggi.month - 1)[1]
+            data_inizio = f"{oggi.year}-{oggi.month - 1:02d}-01"
+            data_fine = f"{oggi.year}-{oggi.month - 1:02d}-{ultimo_giorno:02d}"
+    elif periodo == 'bimestre':
+        due_mesi_fa = oggi.month - 1
+        anno = oggi.year
+        if due_mesi_fa <= 0:
+            due_mesi_fa += 12
+            anno -= 1
+        data_inizio = f"{anno}-{due_mesi_fa:02d}-01"
+        data_fine = oggi.strftime('%Y-%m-%d')
+    elif periodo == 'personalizzato':
+        data_inizio = request.form.get('data_inizio', f"{oggi.year}-{oggi.month:02d}-01")
+        data_fine = request.form.get('data_fine', oggi.strftime('%Y-%m-%d'))
+    else:
+        data_inizio = f"{oggi.year}-{oggi.month:02d}-01"
+        data_fine = oggi.strftime('%Y-%m-%d')
+        periodo = 'questo_mese'
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Totale visite nel periodo
+        cur.execute("SELECT COUNT(*) FROM visite WHERE data_visita >= %s AND data_visita <= %s",
+                    (data_inizio, data_fine))
+        totale_visite = cur.fetchone()[0]
+
+        # Totale volontari e assistiti
+        cur.execute("SELECT COUNT(*) FROM volontari")
+        totale_volontari = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM assistiti")
+        totale_assistiti = cur.fetchone()[0]
+
+        # Volontari più attivi nel periodo
+        cur.execute("""
+            SELECT vol.email, vol.cognome, vol.nome, COUNT(*) as n_visite
+            FROM visite v
+            JOIN volontari vol ON v.volontario_email = vol.email
+            WHERE v.data_visita >= %s AND v.data_visita <= %s
+            GROUP BY vol.email, vol.cognome, vol.nome
+            ORDER BY n_visite DESC
+        """, (data_inizio, data_fine))
+        rows = cur.fetchall()
+        volontari_attivi = [{'email': r[0], 'cognome': r[1], 'nome': r[2], 'n_visite': r[3]} for r in rows]
+
+        # Volontari senza visite nel periodo
+        cur.execute("""
+            SELECT vol.email, vol.cognome, vol.nome, vol.disponibilita
+            FROM volontari vol
+            WHERE vol.email NOT IN (
+                SELECT DISTINCT volontario_email FROM visite
+                WHERE data_visita >= %s AND data_visita <= %s
+            )
+            ORDER BY vol.cognome, vol.nome
+        """, (data_inizio, data_fine))
+        rows = cur.fetchall()
+        volontari_inattivi = [{'email': r[0], 'cognome': r[1], 'nome': r[2], 'disponibilita': r[3]} for r in rows]
+
+        # Assistiti visitati nel periodo
+        cur.execute("""
+            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n_visite
+            FROM visite v
+            JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
+            WHERE v.data_visita >= %s AND v.data_visita <= %s
+            GROUP BY ass.nome_sigla, ass.citta
+            ORDER BY n_visite DESC
+        """, (data_inizio, data_fine))
+        rows = cur.fetchall()
+        assistiti_visitati = [{'nome_sigla': r[0], 'citta': r[1], 'n_visite': r[2]} for r in rows]
+
+        # Assistiti NON visitati nel periodo
+        cur.execute("""
+            SELECT ass.nome_sigla, ass.citta
+            FROM assistiti ass
+            WHERE ass.nome_sigla NOT IN (
+                SELECT DISTINCT assistito_nome FROM visite
+                WHERE data_visita >= %s AND data_visita <= %s
+            )
+            ORDER BY ass.citta, ass.nome_sigla
+        """, (data_inizio, data_fine))
+        rows = cur.fetchall()
+        assistiti_non_visitati = [{'nome_sigla': r[0], 'citta': r[1]} for r in rows]
+
+        media = round(totale_visite / totale_volontari, 1) if totale_volontari > 0 else 0
+
+        stats = {
+            'totale_visite': totale_visite,
+            'totale_volontari': totale_volontari,
+            'totale_assistiti': totale_assistiti,
+            'volontari_attivi': len(volontari_attivi),
+            'volontari_inattivi': len(volontari_inattivi),
+            'assistiti_visitati': len(assistiti_visitati),
+            'assistiti_non_visitati': len(assistiti_non_visitati),
+            'media_visite': media,
+        }
+
+    except Exception as e:
+        logging.error(f"Errore dashboard: {e}")
+        flash(f"Errore nel caricamento della dashboard: {e}", "error")
+        stats = {k: 0 for k in ['totale_visite','totale_volontari','totale_assistiti',
+                                  'volontari_attivi','volontari_inattivi',
+                                  'assistiti_visitati','assistiti_non_visitati','media_visite']}
+        volontari_attivi = []
+        volontari_inattivi = []
+        assistiti_visitati = []
+        assistiti_non_visitati = []
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return render_template('dashboard.html',
+        periodo=periodo,
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        stats=stats,
+        volontari_attivi=volontari_attivi,
+        volontari_inattivi=volontari_inattivi,
+        assistiti_visitati=assistiti_visitati,
+        assistiti_non_visitati=assistiti_non_visitati,
+    )
+
+
+@app.route('/dashboard/pdf', methods=['POST'])
+def dashboard_pdf():
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
+    periodo    = request.form.get('periodo', 'questo_mese')
+    data_inizio = request.form.get('data_inizio', '')
+    data_fine   = request.form.get('data_fine', '')
+
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM visite WHERE data_visita >= %s AND data_visita <= %s", (data_inizio, data_fine))
+        totale_visite = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM volontari")
+        totale_volontari = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM assistiti")
+        totale_assistiti = cur.fetchone()[0]
+
+        cur.execute("""
+            SELECT vol.cognome, vol.nome, vol.email, COUNT(*) as n
+            FROM visite v JOIN volontari vol ON v.volontario_email = vol.email
+            WHERE v.data_visita >= %s AND v.data_visita <= %s
+            GROUP BY vol.cognome, vol.nome, vol.email ORDER BY n DESC
+        """, (data_inizio, data_fine))
+        volontari_attivi = cur.fetchall()
+
+        cur.execute("""
+            SELECT vol.cognome, vol.nome, vol.email, vol.disponibilita
+            FROM volontari vol WHERE vol.email NOT IN (
+                SELECT DISTINCT volontario_email FROM visite
+                WHERE data_visita >= %s AND data_visita <= %s
+            ) ORDER BY vol.cognome, vol.nome
+        """, (data_inizio, data_fine))
+        volontari_inattivi = cur.fetchall()
+
+        cur.execute("""
+            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n
+            FROM visite v JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
+            WHERE v.data_visita >= %s AND v.data_visita <= %s
+            GROUP BY ass.nome_sigla, ass.citta ORDER BY n DESC
+        """, (data_inizio, data_fine))
+        assistiti_visitati = cur.fetchall()
+
+        cur.execute("""
+            SELECT ass.nome_sigla, ass.citta FROM assistiti ass
+            WHERE ass.nome_sigla NOT IN (
+                SELECT DISTINCT assistito_nome FROM visite
+                WHERE data_visita >= %s AND data_visita <= %s
+            ) ORDER BY ass.citta, ass.nome_sigla
+        """, (data_inizio, data_fine))
+        assistiti_non_visitati = cur.fetchall()
+
+    except Exception as e:
+        flash(f"Errore nella generazione del PDF: {e}", "error")
+        return redirect(url_for('dashboard'))
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+    # === GENERA PDF ===
+    buf = BytesIO()
+    styles = getSampleStyleSheet()
+
+    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=14,
+                         textColor=colors.HexColor('#1a3a6b'), spaceAfter=6)
+    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=11,
+                         textColor=colors.HexColor('#2e6da4'), spaceBefore=12, spaceAfter=4)
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=9, leading=13)
+    centro = ParagraphStyle('Centro', parent=styles['Normal'], fontSize=9,
+                             alignment=TA_CENTER, textColor=colors.white)
+
+    NOMI_PERIODO = {
+        'questo_mese': 'Questo mese',
+        'mese_scorso': 'Mese scorso',
+        'bimestre':    'Bimestre',
+        'personalizzato': 'Personalizzato',
+    }
+
+    def tabella(header_row, data_rows, col_widths, header_color='#2e6da4'):
+        rows = [header_row] + (data_rows if data_rows else [['—'] * len(header_row)])
+        t = Table(rows, colWidths=col_widths)
+        t.setStyle(TableStyle([
+            ('BACKGROUND',  (0,0), (-1,0), colors.HexColor(header_color)),
+            ('TEXTCOLOR',   (0,0), (-1,0), colors.white),
+            ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',    (0,0), (-1,-1), 9),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f0f4fa')]),
+            ('GRID',        (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+            ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
+            ('PADDING',     (0,0), (-1,-1), 5),
+        ]))
+        return t
+
+    media = round(totale_visite / totale_volontari, 1) if totale_volontari > 0 else 0
+
+    story = [
+        Paragraph('Associazione TEMPO INSIEME', ParagraphStyle('titolo', parent=styles['Title'],
+            fontSize=18, textColor=colors.HexColor('#1a3a6b'), alignment=TA_CENTER)),
+        Paragraph('Dashboard Riepilogativa', ParagraphStyle('sub', parent=styles['Normal'],
+            fontSize=12, textColor=colors.HexColor('#555'), alignment=TA_CENTER, spaceAfter=4)),
+        Paragraph(f'Periodo: <b>{NOMI_PERIODO.get(periodo, periodo)}</b> '
+                  f'({data_inizio} → {data_fine})',
+                  ParagraphStyle('per', parent=styles['Normal'], fontSize=10,
+                                 textColor=colors.HexColor('#555'), alignment=TA_CENTER, spaceAfter=16)),
+        HRFlowable(width='100%', thickness=1, color=colors.HexColor('#cccccc'), spaceAfter=12),
+
+        # Riepilogo numerico
+        Paragraph('Riepilogo', h1),
+        tabella(
+            ['Indicatore', 'Valore'],
+            [
+                ['Visite nel periodo', str(totale_visite)],
+                ['Volontari totali', str(totale_volontari)],
+                ['Volontari attivi nel periodo', str(len(volontari_attivi))],
+                ['Volontari senza visite', str(len(volontari_inattivi))],
+                ['Assistiti totali', str(totale_assistiti)],
+                ['Assistiti visitati', str(len(assistiti_visitati))],
+                ['Assistiti non visitati', str(len(assistiti_non_visitati))],
+                ['Media visite per volontario', str(media)],
+            ],
+            [10*cm, 6*cm]
+        ),
+        Spacer(1, 16),
+
+        # Volontari attivi
+        Paragraph('Volontari più attivi nel periodo', h2),
+        tabella(
+            ['#', 'Cognome e Nome', 'Email', 'N. Visite'],
+            [[str(i+1), f"{r[0]} {r[1]}", r[2], str(r[3])] for i, r in enumerate(volontari_attivi)],
+            [1*cm, 5*cm, 7*cm, 3*cm]
+        ),
+        Spacer(1, 12),
+
+        # Volontari senza visite
+        Paragraph('Volontari senza visite nel periodo', h2),
+        tabella(
+            ['Cognome e Nome', 'Email', 'Disponibilità'],
+            [[f"{r[0]} {r[1]}", r[2], r[3] or '—'] for r in volontari_inattivi],
+            [5*cm, 7*cm, 5*cm],
+            header_color='#c0392b'
+        ),
+        Spacer(1, 12),
+
+        # Assistiti visitati
+        Paragraph('Assistiti visitati nel periodo', h2),
+        tabella(
+            ['Sigla', 'Città', 'N. Visite'],
+            [[r[0], r[1], str(r[2])] for r in assistiti_visitati],
+            [5*cm, 9*cm, 3*cm]
+        ),
+        Spacer(1, 12),
+
+        # Assistiti non visitati
+        Paragraph('Assistiti non visitati nel periodo', h2),
+        tabella(
+            ['Sigla', 'Città'],
+            [[r[0], r[1]] for r in assistiti_non_visitati],
+            [5*cm, 12*cm],
+            header_color='#c0392b'
+        ),
+
+        Spacer(1, 20),
+        HRFlowable(width='100%', thickness=1, color=colors.HexColor('#cccccc'), spaceAfter=6),
+        Paragraph(f'Generato il {datetime.now().strftime("%d/%m/%Y alle %H:%M")}',
+                  ParagraphStyle('footer', parent=styles['Normal'], fontSize=8,
+                                 textColor=colors.grey, alignment=TA_CENTER)),
+    ]
+
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            rightMargin=2*cm, leftMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    doc.build(story)
+    buf.seek(0)
+
+    filename = f"dashboard_{data_inizio}_{data_fine}.pdf"
+    return send_file(buf, download_name=filename, as_attachment=True, mimetype='application/pdf')
+
 
 @app.route('/logout')
 def logout():
