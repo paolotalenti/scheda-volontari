@@ -17,7 +17,9 @@
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>Nome Sigla</th>
+                <th>Sigla</th>
+                <th>Nome</th>
+                <th>Cognome</th>
                 <th>Città</th>
                 <th>Azioni</th>
             </tr>
@@ -26,6 +28,8 @@
             {% for assistito in assistiti %}
             <tr>
                 <td>{{ assistito[0] }}</td>
+                <td>{{ assistito[2] or '—' }}</td>
+                <td>{{ assistito[3] or '—' }}</td>
                 <td>{{ assistito[1] }}</td>
                 <td>
                     <a href="{{ url_for('modifica_assistito', nome_sigla=assistito[0]) }}" class="btn btn-sm btn-warning">Modifica</a>
@@ -36,7 +40,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="3">Nessun assistito trovato.</td>
+                <td colspan="5">Nessun assistito trovato.</td>
             </tr>
             {% endfor %}
         </tbody>

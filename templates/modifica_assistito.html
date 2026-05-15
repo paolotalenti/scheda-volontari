@@ -15,8 +15,16 @@
     {% if assistito %}
     <form method="POST">
         <div class="mb-3">
-            <label for="nome_sigla" class="form-label">Nome Sigla</label>
+            <label for="nome_sigla" class="form-label">Sigla</label>
             <input type="text" class="form-control" id="nome_sigla" name="nome_sigla" value="{{ assistito[0] }}" readonly>
+        </div>
+        <div class="mb-3">
+            <label for="nome" class="form-label">Nome <span class="text-muted small">(riservato — visibile solo agli amministratori)</span></label>
+            <input type="text" class="form-control" id="nome" name="nome" value="{{ assistito[2] or '' }}">
+        </div>
+        <div class="mb-3">
+            <label for="cognome" class="form-label">Cognome <span class="text-muted small">(riservato — visibile solo agli amministratori)</span></label>
+            <input type="text" class="form-control" id="cognome" name="cognome" value="{{ assistito[3] or '' }}">
         </div>
         <div class="mb-3">
             <label for="citta" class="form-label">Città</label>

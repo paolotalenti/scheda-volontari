@@ -184,11 +184,13 @@
       <h5>✅ Assistiti visitati nel periodo</h5>
       {% if assistiti_visitati %}
         <table class="table table-sm table-hover mb-0">
-          <thead><tr><th>Sigla</th><th>Città</th><th class="text-center">Visite</th></tr></thead>
+          <thead><tr><th>Sigla</th><th>Nome</th><th>Cognome</th><th>Città</th><th class="text-center">Visite</th></tr></thead>
           <tbody>
           {% for a in assistiti_visitati %}
             <tr class="row-attivo">
               <td><strong>{{ a.nome_sigla }}</strong></td>
+              <td>{{ a.nome or '—' }}</td>
+              <td>{{ a.cognome or '—' }}</td>
               <td>{{ a.citta }}</td>
               <td class="text-center"><span class="badge-visite">{{ a.n_visite }}</span></td>
             </tr>
@@ -207,11 +209,13 @@
       <h5>❌ Assistiti non visitati nel periodo</h5>
       {% if assistiti_non_visitati %}
         <table class="table table-sm mb-0">
-          <thead><tr><th>Sigla</th><th>Città</th></tr></thead>
+          <thead><tr><th>Sigla</th><th>Nome</th><th>Cognome</th><th>Città</th></tr></thead>
           <tbody>
           {% for a in assistiti_non_visitati %}
             <tr class="row-inattivo">
               <td><strong>{{ a.nome_sigla }}</strong></td>
+              <td>{{ a.nome or '—' }}</td>
+              <td>{{ a.cognome or '—' }}</td>
               <td>{{ a.citta }}</td>
             </tr>
           {% endfor %}

@@ -56,8 +56,11 @@ def init_config():
             VALUES ('admin_password', %s)
             ON CONFLICT (key) DO NOTHING
         """, (ADMIN_PASSWORD,))
+        # Migrazione: aggiunge nome e cognome alla tabella assistiti se non esistono
+        cur.execute("ALTER TABLE assistiti ADD COLUMN IF NOT EXISTS nome TEXT")
+        cur.execute("ALTER TABLE assistiti ADD COLUMN IF NOT EXISTS cognome TEXT")
         conn.commit()
-        logging.info("init_config: tabella config verificata/creata.")
+        logging.info("init_config: tabella config verificata/creata. Migrazione assistiti eseguita.")
     except Exception as e:
         logging.error(f"Errore in init_config: {e}")
         if conn:
@@ -106,7 +109,7 @@ def backup_automatico():
             cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
             volontari = cur.fetchall()
 
-            cur.execute("SELECT nome_sigla, citta FROM assistiti")
+            cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti")
             assistiti = cur.fetchall()
 
             base_path = os.path.join(os.path.dirname(__file__), 'backups')
@@ -126,9 +129,9 @@ def backup_automatico():
                     writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
 
                 writer.writerow(['--- Assistiti ---'])
-                writer.writerow(['Nome Sigla', 'Città'])
+                writer.writerow(['Nome Sigla', 'Città', 'Nome', 'Cognome'])
                 for assistito in assistiti:
-                    writer.writerow([assistito[0], assistito[1]])
+                    writer.writerow([assistito[0], assistito[1], assistito[2] or '', assistito[3] or ''])
             
             logging.info(f"Backup creato: {filename}")
 
@@ -575,10 +578,13 @@ def restore():
                     elif section == '--- Assistiti ---' and row[0] != 'Nome Sigla':
                         if len(row) < 2:
                             continue
-                        assistiti.append((row[0], row[1]))
+                        # Retrocompatibile: vecchi backup hanno 2 colonne, nuovi 4
+                        nome_ass = row[2] if len(row) > 2 else None
+                        cognome_ass = row[3] if len(row) > 3 else None
+                        assistiti.append((row[0], row[1], nome_ass, cognome_ass))
 
                 for assistito in assistiti:
-                    cur.execute("INSERT INTO assistiti (nome_sigla, citta) VALUES (%s, %s)", assistito)
+                    cur.execute("INSERT INTO assistiti (nome_sigla, citta, nome, cognome) VALUES (%s, %s, %s, %s)", assistito)
                 for volontario in volontari:
                     cur.execute("""
                         INSERT INTO volontari (email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione)
@@ -972,7 +978,7 @@ def lista_assistiti():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT nome_sigla, citta FROM assistiti ORDER BY nome_sigla")
+        cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti ORDER BY nome_sigla")
         assistiti = cur.fetchall()
     except psycopg.OperationalError as e:
         flash(f"Errore nel caricamento degli assistiti: {e}", "error")
@@ -993,6 +999,8 @@ def aggiungi_assistito():
     if request.method == 'POST':
         nome_sigla = request.form.get('nome_sigla')
         citta = request.form.get('citta')
+        nome = request.form.get('nome', '').strip() or None
+        cognome = request.form.get('cognome', '').strip() or None
 
         if not nome_sigla or not citta:
             flash("Nome sigla e città sono obbligatori.", "error")
@@ -1005,8 +1013,8 @@ def aggiungi_assistito():
             if cur.fetchone():
                 flash(f"Il nome sigla {nome_sigla} è già registrato.", "error")
                 return render_template('aggiungi_assistito.html')
-            
-            cur.execute("INSERT INTO assistiti (nome_sigla, citta) VALUES (%s, %s)", (nome_sigla, citta))
+
+            cur.execute("INSERT INTO assistiti (nome_sigla, citta, nome, cognome) VALUES (%s, %s, %s, %s)", (nome_sigla, citta, nome, cognome))
             conn.commit()
             flash(f"Assistito {nome_sigla} aggiunto con successo!", "success")
             return redirect(url_for('lista_assistiti'))
@@ -1030,12 +1038,14 @@ def modifica_assistito(nome_sigla):
     
     if request.method == 'POST':
         citta = request.form.get('citta')
+        nome = request.form.get('nome', '').strip() or None
+        cognome = request.form.get('cognome', '').strip() or None
         if not citta:
             flash("La città è obbligatoria.", "error")
-            return render_template('modifica_assistito.html', assistito={'nome_sigla': nome_sigla, 'citta': citta})
+            return render_template('modifica_assistito.html', assistito={'nome_sigla': nome_sigla, 'citta': citta, 'nome': nome, 'cognome': cognome})
 
         try:
-            cur.execute("UPDATE assistiti SET citta = %s WHERE nome_sigla = %s", (citta, nome_sigla))
+            cur.execute("UPDATE assistiti SET citta = %s, nome = %s, cognome = %s WHERE nome_sigla = %s", (citta, nome, cognome, nome_sigla))
             conn.commit()
             flash(f"Assistito {nome_sigla} aggiornato con successo!", "success")
             return redirect(url_for('lista_assistiti'))
@@ -1048,7 +1058,7 @@ def modifica_assistito(nome_sigla):
                 conn.close()
 
     try:
-        cur.execute("SELECT nome_sigla, citta FROM assistiti WHERE nome_sigla = %s", (nome_sigla,))
+        cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti WHERE nome_sigla = %s", (nome_sigla,))
         assistito = cur.fetchone()
         if not assistito:
             flash("Assistito non trovato nel database.", "error")
@@ -1099,14 +1109,14 @@ def download_csv_assistiti():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT nome_sigla, citta FROM assistiti ORDER BY citta, nome_sigla")
+        cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti ORDER BY citta, nome_sigla")
         assistiti = cur.fetchall()
 
         output = StringIO()
         writer = csv.writer(output, lineterminator='\n')
-        writer.writerow(['Nome Sigla', 'Città'])
+        writer.writerow(['Nome Sigla', 'Città', 'Nome', 'Cognome'])
         for a in assistiti:
-            writer.writerow([a[0], a[1]])
+            writer.writerow([a[0], a[1], a[2] or '', a[3] or ''])
 
         csv_output = output.getvalue().encode('utf-8-sig')
         output.close()
@@ -1242,19 +1252,19 @@ def dashboard():
 
         # Assistiti visitati nel periodo
         cur.execute("""
-            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n_visite
+            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n_visite, ass.nome, ass.cognome
             FROM visite v
             JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
             WHERE v.data_visita >= %s AND v.data_visita <= %s
-            GROUP BY ass.nome_sigla, ass.citta
+            GROUP BY ass.nome_sigla, ass.citta, ass.nome, ass.cognome
             ORDER BY n_visite DESC
         """, (data_inizio, data_fine))
         rows = cur.fetchall()
-        assistiti_visitati = [{'nome_sigla': r[0], 'citta': r[1], 'n_visite': r[2]} for r in rows]
+        assistiti_visitati = [{'nome_sigla': r[0], 'citta': r[1], 'n_visite': r[2], 'nome': r[3], 'cognome': r[4]} for r in rows]
 
         # Assistiti NON visitati nel periodo
         cur.execute("""
-            SELECT ass.nome_sigla, ass.citta
+            SELECT ass.nome_sigla, ass.citta, ass.nome, ass.cognome
             FROM assistiti ass
             WHERE ass.nome_sigla NOT IN (
                 SELECT DISTINCT assistito_nome FROM visite
@@ -1263,7 +1273,7 @@ def dashboard():
             ORDER BY ass.citta, ass.nome_sigla
         """, (data_inizio, data_fine))
         rows = cur.fetchall()
-        assistiti_non_visitati = [{'nome_sigla': r[0], 'citta': r[1]} for r in rows]
+        assistiti_non_visitati = [{'nome_sigla': r[0], 'citta': r[1], 'nome': r[2], 'cognome': r[3]} for r in rows]
 
         media = round(totale_visite / totale_volontari, 1) if totale_volontari > 0 else 0
 
@@ -1343,15 +1353,15 @@ def dashboard_pdf():
         volontari_inattivi = cur.fetchall()
 
         cur.execute("""
-            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n
+            SELECT ass.nome_sigla, ass.citta, COUNT(*) as n, ass.nome, ass.cognome
             FROM visite v JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
             WHERE v.data_visita >= %s AND v.data_visita <= %s
-            GROUP BY ass.nome_sigla, ass.citta ORDER BY n DESC
+            GROUP BY ass.nome_sigla, ass.citta, ass.nome, ass.cognome ORDER BY n DESC
         """, (data_inizio, data_fine))
         assistiti_visitati = cur.fetchall()
 
         cur.execute("""
-            SELECT ass.nome_sigla, ass.citta FROM assistiti ass
+            SELECT ass.nome_sigla, ass.citta, ass.nome, ass.cognome FROM assistiti ass
             WHERE ass.nome_sigla NOT IN (
                 SELECT DISTINCT assistito_nome FROM visite
                 WHERE data_visita >= %s AND data_visita <= %s
@@ -1453,18 +1463,18 @@ def dashboard_pdf():
         # Assistiti visitati
         Paragraph('Assistiti visitati nel periodo', h2),
         tabella(
-            ['Sigla', 'Città', 'N. Visite'],
-            [[r[0], r[1], str(r[2])] for r in assistiti_visitati],
-            [5*cm, 9*cm, 3*cm]
+            ['Sigla', 'Nome', 'Cognome', 'Città', 'N. Visite'],
+            [[r[0], r[3] or '—', r[4] or '—', r[1], str(r[2])] for r in assistiti_visitati],
+            [2.5*cm, 4*cm, 4*cm, 5*cm, 2*cm]
         ),
         Spacer(1, 12),
 
         # Assistiti non visitati
         Paragraph('Assistiti non visitati nel periodo', h2),
         tabella(
-            ['Sigla', 'Città'],
-            [[r[0], r[1]] for r in assistiti_non_visitati],
-            [5*cm, 12*cm],
+            ['Sigla', 'Nome', 'Cognome', 'Città'],
+            [[r[0], r[2] or '—', r[3] or '—', r[1]] for r in assistiti_non_visitati],
+            [2.5*cm, 4*cm, 4*cm, 7*cm],
             header_color='#c0392b'
         ),
 
