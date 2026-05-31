@@ -1,4 +1,5 @@
 import os
+import secrets
 import psycopg
 from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from reportlab.lib.pagesizes import A4
@@ -9,13 +10,13 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER
 from io import BytesIO, StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import logging
-import csv  # Aggiunto import csv
+import csv
 
 # Configura il logging
 logging.basicConfig(filename='backup.log', level=logging.INFO)
@@ -27,6 +28,8 @@ app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 if not ADMIN_PASSWORD:
     raise ValueError("ADMIN_PASSWORD non definita nel file .env")
+
+BACKUP_TOKEN = os.getenv('BACKUP_TOKEN', secrets.token_hex(32))
 
 # Connessione al database PostgreSQL
 def get_db_connection():
@@ -71,6 +74,97 @@ def init_config():
         if conn:
             conn.close()
 
+def init_backups_table():
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS backups (
+                id SERIAL PRIMARY KEY,
+                filename TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                csv_content TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        logging.info("init_backups_table: tabella backups verificata/creata.")
+    except Exception as e:
+        logging.error(f"Errore in init_backups_table: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+def _genera_csv_backup():
+    """Genera il contenuto CSV completo del backup e lo restituisce come stringa."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
+                   vol.cognome, vol.nome, ass.citta
+            FROM visite v
+            JOIN volontari vol ON v.volontario_email = vol.email
+            JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
+        """)
+        visite = cur.fetchall()
+
+        cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
+        volontari = cur.fetchall()
+
+        cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti")
+        assistiti = cur.fetchall()
+
+        output = StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+
+        writer.writerow(['--- Visite ---'])
+        writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
+        for visita in visite:
+            writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
+
+        writer.writerow(['--- Volontari ---'])
+        writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
+        for volontario in volontari:
+            writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
+
+        writer.writerow(['--- Assistiti ---'])
+        writer.writerow(['Nome Sigla', 'Città', 'Nome', 'Cognome'])
+        for assistito in assistiti:
+            writer.writerow([assistito[0], assistito[1], assistito[2] or '', assistito[3] or ''])
+
+        return output.getvalue()
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+def _salva_backup_nel_db(csv_content, filename):
+    """Salva il CSV nella tabella backups e rimuove i backup più vecchi di 30 giorni."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO backups (filename, csv_content) VALUES (%s, %s)",
+            (filename, csv_content)
+        )
+        # Pulizia: mantieni solo gli ultimi 30 giorni
+        cutoff = datetime.now() - timedelta(days=30)
+        cur.execute("DELETE FROM backups WHERE created_at < %s", (cutoff,))
+        conn.commit()
+        logging.info(f"Backup salvato nel DB: {filename}")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
 def get_admin_password():
     conn = None
     cur = None
@@ -92,71 +186,21 @@ def get_admin_password():
 def backup_automatico():
     logging.info(f"Inizio backup automatico alle: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     for attempt in range(3):
-        conn = None
-        cur = None
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
-                       vol.cognome, vol.nome, ass.citta
-                FROM visite v
-                JOIN volontari vol ON v.volontario_email = vol.email
-                JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
-            """)
-            visite = cur.fetchall()
-
-            cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
-            volontari = cur.fetchall()
-
-            cur.execute("SELECT nome_sigla, citta, nome, cognome FROM assistiti")
-            assistiti = cur.fetchall()
-
-            base_path = os.path.join(os.path.dirname(__file__), 'backups')
-            os.makedirs(base_path, exist_ok=True)
-            filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-            
-            with open(filename, 'w', newline='', encoding='utf-8') as output_file:
-                writer = csv.writer(output_file, lineterminator='\n')
-                writer.writerow(['--- Visite ---'])
-                writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
-                for visita in visite:
-                    writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
-
-                writer.writerow(['--- Volontari ---'])
-                writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
-                for volontario in volontari:
-                    writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
-
-                writer.writerow(['--- Assistiti ---'])
-                writer.writerow(['Nome Sigla', 'Città', 'Nome', 'Cognome'])
-                for assistito in assistiti:
-                    writer.writerow([assistito[0], assistito[1], assistito[2] or '', assistito[3] or ''])
-            
-            logging.info(f"Backup creato: {filename}")
-
-            now = datetime.now()
-            for file in os.listdir(base_path):
-                file_path = os.path.join(base_path, file)
-                if os.path.isfile(file_path):
-                    file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                    if (now - file_time).days > 7:
-                        os.remove(file_path)
-                        logging.info(f"Eliminato backup vecchio: {file}")
+            filename = f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            csv_content = _genera_csv_backup()
+            _salva_backup_nel_db(csv_content, filename)
+            logging.info(f"Backup automatico completato: {filename}")
             break
-        except psycopg.OperationalError as e:
+        except Exception as e:
             logging.error(f"Tentativo {attempt + 1} fallito: {e}")
             time.sleep(5)
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
 
 scheduler = BackgroundScheduler(timezone="Europe/Rome")
 scheduler.add_job(backup_automatico, 'cron', hour=2, minute=0)
 scheduler.start()
 init_config()
+init_backups_table()
 
 @app.route('/')
 def home():
@@ -467,51 +511,54 @@ def backup():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
+    try:
+        filename = f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        csv_content = _genera_csv_backup()
+        _salva_backup_nel_db(csv_content, filename)
+        flash("Backup creato con successo!", "success")
+    except Exception as e:
+        logging.error(f"Errore nel backup manuale: {e}")
+        flash(f"Errore nel backup: {e}", "error")
+    return redirect(url_for('report'))
+
+
+@app.route('/run_backup')
+def run_backup():
+    """Endpoint per cron-job.org: esegue il backup senza login, protetto da token."""
+    token = request.args.get('token', '')
+    if not token or token != BACKUP_TOKEN:
+        return Response('Unauthorized', status=401)
+    try:
+        backup_automatico()
+        return Response('OK', status=200)
+    except Exception as e:
+        logging.error(f"Errore in /run_backup: {e}")
+        return Response(f'Error: {e}', status=500)
+
+
+@app.route('/download_backup/<int:backup_id>')
+def download_backup(backup_id):
+    """Scarica un backup specifico come file CSV."""
+    if not session.get('logged_in', False):
+        return redirect(url_for('admin_login'))
+
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""
-            SELECT v.volontario_email, v.assistito_nome, v.accoglienza, v.data_visita, v.necessita, v.cosa_migliorare,
-                   vol.cognome, vol.nome, ass.citta
-            FROM visite v
-            JOIN volontari vol ON v.volontario_email = vol.email
-            JOIN assistiti ass ON v.assistito_nome = ass.nome_sigla
-        """)
-        visite = cur.fetchall()
-
-        cur.execute("SELECT email, cognome, nome, telefono, competenze, disponibilita, data_iscrizione FROM volontari")
-        volontari = cur.fetchall()
-
-        cur.execute("SELECT nome_sigla, citta FROM assistiti")
-        assistiti = cur.fetchall()
-
-        base_path = os.path.join(os.path.dirname(__file__), 'backups')
-        os.makedirs(base_path, exist_ok=True)
-        filename = os.path.join(base_path, f"backup_dati_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-        
-        with open(filename, 'w', newline='', encoding='utf-8') as output_file:
-            writer = csv.writer(output_file, lineterminator='\n')
-            writer.writerow(['--- Visite ---'])
-            writer.writerow(['Volontario Email', 'Cognome', 'Nome', 'Assistito', 'Città', 'Accoglienza', 'Data Visita', 'Necessità', 'Considerazioni'])
-            for visita in visite:
-                writer.writerow([visita[0], visita[7], visita[6], visita[1], visita[8], visita[2], visita[3], visita[4] or '', visita[5] or ''])
-
-            writer.writerow(['--- Volontari ---'])
-            writer.writerow(['Email', 'Cognome', 'Nome', 'Telefono', 'Competenze', 'Disponibilità', 'Data Iscrizione'])
-            for volontario in volontari:
-                writer.writerow([volontario[0], volontario[1], volontario[2], volontario[3] or '', volontario[4] or '', volontario[5] or '', volontario[6] or ''])
-
-            writer.writerow(['--- Assistiti ---'])
-            writer.writerow(['Nome Sigla', 'Città'])
-            for assistito in assistiti:
-                writer.writerow([assistito[0], assistito[1]])
-        
-        logging.info(f"Backup manuale creato: {filename}")
-        flash("Backup creato con successo sul server!", "success")
-        return redirect(url_for('report'))
-    except psycopg.OperationalError as e:
-        flash(f"Errore nel backup: {e}", "error")
-        return redirect(url_for('report'))
+        cur.execute("SELECT filename, csv_content FROM backups WHERE id = %s", (backup_id,))
+        row = cur.fetchone()
+        if not row:
+            flash("Backup non trovato.", "error")
+            return redirect(url_for('restore'))
+        filename, csv_content = row
+        return Response(
+            csv_content.encode('utf-8'),
+            mimetype='text/csv',
+            headers={"Content-Disposition": f"attachment;filename={filename}"}
+        )
+    except Exception as e:
+        flash(f"Errore nel download: {e}", "error")
+        return redirect(url_for('restore'))
     finally:
         if cur:
             cur.close()
@@ -523,11 +570,15 @@ def restore():
     if not session.get('logged_in', False):
         return redirect(url_for('admin_login'))
 
-    backup_files = []
+    # Carica lista backup dal DB
+    backup_records = []
     try:
-        base_path = os.path.join(os.path.dirname(__file__), 'backups')
-        if os.path.exists(base_path):
-            backup_files = [f for f in os.listdir(base_path) if f.startswith('backup_dati_') and f.endswith('.csv')]
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, filename, created_at FROM backups ORDER BY created_at DESC")
+        backup_records = cur.fetchall()
+        cur.close()
+        conn.close()
     except Exception as e:
         flash(f"Errore nella lettura dei backup: {e}", "error")
 
@@ -535,26 +586,31 @@ def restore():
         password = request.form.get('password')
         if password != get_admin_password():
             flash("Password errata per il ripristino.", "error")
-            return render_template('restore.html', backup_files=backup_files)
+            return render_template('restore.html', backup_records=backup_records)
 
-        selected_file = request.form.get('backup_file_select')
-        if selected_file:
+        selected_id = request.form.get('backup_file_select')
+        if selected_id:
             conn = None
             cur = None
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
 
+                # Leggi il CSV dal DB
+                cur.execute("SELECT filename, csv_content FROM backups WHERE id = %s", (selected_id,))
+                row = cur.fetchone()
+                if not row:
+                    raise Exception("Backup non trovato nel database.")
+                selected_filename, csv_content = row
+
                 cur.execute("DELETE FROM visite")
                 cur.execute("DELETE FROM volontari")
                 cur.execute("DELETE FROM assistiti")
                 conn.commit()
 
-                file_path = os.path.join(base_path, selected_file)
-                with open(file_path, 'r', encoding='utf-8-sig') as f:
-                    content = f.read().splitlines()
+                content = csv_content.splitlines()
                 if not content:
-                    raise Exception("Il file CSV è vuoto.")
+                    raise Exception("Il backup è vuoto.")
                 reader = csv.reader(content)
                 section = None
                 assistiti = []
@@ -597,7 +653,7 @@ def restore():
                     """, visita)
 
                 conn.commit()
-                flash(f"Backup {selected_file} ripristinato con successo!", "success")
+                flash(f"Backup '{selected_filename}' ripristinato con successo!", "success")
                 return redirect(url_for('report'))
             except psycopg.OperationalError as e:
                 flash(f"Errore nel ripristino: {e}", "error")
@@ -609,7 +665,7 @@ def restore():
                 if conn:
                     conn.close()
 
-    return render_template('restore.html', backup_files=backup_files)
+    return render_template('restore.html', backup_records=backup_records)
 
 @app.route('/clean', methods=['POST'])
 def clean():
